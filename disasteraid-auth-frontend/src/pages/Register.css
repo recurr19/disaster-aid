@@ -1,3 +1,14 @@
+.page-bg {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.network-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; }
+
 .gov-form-container {
   width: 400px;
   margin: 80px auto;
@@ -9,6 +20,8 @@
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   font-family: 'Inter', 'Roboto', sans-serif;
   color: #212529;
+  position: relative;
+  z-index: 1;
 }
 
 .gov-form-container h2 {
@@ -40,4 +53,25 @@
 
 .gov-form-container button:hover {
   background-color: #0948a4;
+}
+
+/* Left-aligned checkbox grid for Areas of Work */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  justify-items: start;
+  text-align: left;
+  margin: 8px 0 4px;
+}
+
+.checkbox-grid.left-align {
+  justify-items: start;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
 }

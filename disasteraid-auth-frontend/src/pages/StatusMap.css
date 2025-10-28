@@ -1,0 +1,157 @@
+.statusmap-shell { min-height: 100vh; position: relative; }
+.network-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+}
+
+.statusmap-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: transparent;
+  backdrop-filter: none;
+  border-bottom: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+}
+
+.statusmap-header h1 {
+  margin: 0;
+  font-size: 20px;
+  text-shadow: 0 2px 6px rgba(255,255,255,0.8);
+}
+
+.statusmap-header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+}
+
+.header-icon {
+  background: rgba(220,38,38,0.85);
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+}
+
+.statusmap-page {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  gap: 16px;
+  min-height: calc(100vh - 60px);
+  padding: 16px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+
+.card {
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+/* Improve text legibility over animated background */
+.filters-panel, .details-panel {
+  color: #111827; /* gray-900 */
+  text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+}
+.filters-panel h3, .details-panel h4 {
+  text-shadow: 0 2px 6px rgba(255,255,255,0.8);
+}
+
+.filters-panel {
+  padding: 16px;
+  overflow: auto;
+}
+
+.filters-panel h3 {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.chip-on {
+  border-color: #0B5ED7;
+  background: #e7f1ff;
+  color: #0B5ED7;
+}
+
+.map-stage {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 80vh;
+}
+
+/* Let the animated background subtly show through tiles */
+.leaflet-container { background: transparent !important; }
+.leaflet-tile { opacity: 0.8; }
+.leaflet-marker-icon, .leaflet-marker-shadow { opacity: 1; }
+
+.marker {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.marker.incident {
+  background: rgba(220, 38, 38, 0.7);
+}
+
+.marker.ngo {
+  background: rgba(37, 99, 235, 0.7);
+}
+
+.details-panel { padding: 16px; overflow: auto; }
+
+.details-panel h4 {
+  margin: 0 0 6px 0;
+}
+
+.placeholder {
+  color: #6b7280;
+}
+
+.help-section {
+  margin-top: 12px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+@media (max-width: 1024px) {
+  .statusmap-page { grid-template-columns: 1fr; grid-auto-rows: auto; height: auto; }
+  .map-stage { height: 60vh; }
+}
+
+

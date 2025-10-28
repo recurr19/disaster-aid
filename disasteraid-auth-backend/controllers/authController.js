@@ -15,7 +15,7 @@ const jwt = require('jsonwebtoken');
  */
 exports.registerUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, ngoProfile } = req.body;
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'All fields are required' });
     }
@@ -29,7 +29,17 @@ exports.registerUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role
+      role,
+      ngoProfile: role === 'ngo' && ngoProfile ? {
+        organizationName: ngoProfile.organizationName,
+        contactPerson: ngoProfile.contactPerson,
+        phone: ngoProfile.phone,
+        location: ngoProfile.location,
+        areasOfWork: Array.isArray(ngoProfile.areasOfWork) ? ngoProfile.areasOfWork : [],
+        availability: ngoProfile.availability,
+        resources: ngoProfile.resources,
+        registrationId: ngoProfile.registrationId
+      } : undefined
     });
 
     const token = jwt.sign(
@@ -40,7 +50,13 @@ exports.registerUser = async (req, res) => {
 
     res.status(201).json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        ngoProfile: user.ngoProfile
+      }
     });
   } catch (err) {
     console.error(err);

@@ -1,9 +1,17 @@
-import { useContext, useState } from 'react';
-import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, Menu, X } from 'lucide-react';
+import { useContext, useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, Menu, X, PlusCircle, Clock, CheckCircle2 } from 'lucide-react';
+import { AuthContext } from '../context/AuthContext';
+import API from '../api/axios';
 
 const Dashboard = () => {
-  const [user] = useState({ name: 'John Doe', role: 'citizen' });
+  const { user } = useContext(AuthContext);
+  const { role } = useParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('request');
+  const [sidebarTab, setSidebarTab] = useState('new'); // 'new' | 'active' | 'past'
+  const [tickets, setTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
   const [isSOS, setIsSOS] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,13 +71,42 @@ const Dashboard = () => {
     alert('Status check for ticket: ' + formData.ticketId);
   };
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-gray-500">Loading...</p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!user) return;
+    // If the route role doesn't match logged-in user's role, redirect to correct dashboard
+    if (role && user.role !== role) {
+      navigate(`/dashboard/${user.role}`, { replace: true });
+    }
+  }, [user, role, navigate]);
+
+  // Fetch tickets when citizen sidebar switches to active/past
+  useEffect(() => {
+    if (!user) return;
+    if (user.role !== 'citizen') return;
+    if (sidebarTab !== 'active' && sidebarTab !== 'past') return;
+    const controller = new AbortController();
+    async function fetchTickets() {
+      try {
+        setLoadingTickets(true);
+        const status = sidebarTab === 'active' ? 'active' : 'closed';
+        // Exposed API endpoint (backend to be implemented later)
+        const res = await API.get('/tickets', { params: { status }, signal: controller.signal });
+        setTickets(Array.isArray(res.data?.tickets) ? res.data.tickets : []);
+      } catch (e) {
+        if (e.name !== 'CanceledError') {
+          setTickets([]);
+        }
+      } finally {
+        setLoadingTickets(false);
+      }
+    }
+    fetchTickets();
+    return () => controller.abort();
+  }, [sidebarTab, user]);
+
+  // No sync needed; Check Status handled inside main tabs
+
+  if (!user) return null;
 
   if (user.role === 'ngo') {
     return (
@@ -155,52 +192,75 @@ const Dashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center mb-8">
-          <AlertTriangle className="w-16 h-16 text-red-600 mx-auto mb-4" />
-          <h2 className="text-4xl font-bold text-gray-900 mb-2">Emergency Assistance</h2>
-          <p className="text-lg text-gray-600">Report your situation and get connected with relief teams</p>
-        </div>
-
-        <div className="bg-red-50 border-l-4 border-red-600 p-6 rounded-lg mb-8">
-          <div className="flex items-start space-x-3">
-            <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
-            <div>
-              <h3 className="font-bold text-red-900 text-lg mb-1">Life-Threatening Emergency?</h3>
-              <p className="text-red-800">
-                If you're in immediate danger, call local emergency services first (112, 100, 108). 
-                Then use this form to coordinate relief efforts.
-              </p>
+        {/* Citizen sidebar + content layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <aside className="lg:col-span-3">
+            <div className="bg-white rounded-xl shadow p-4 sticky top-24">
+              <p className="text-sm text-gray-500 mb-3">Your Tickets</p>
+              <nav className="space-y-2">
+                <button onClick={() => setSidebarTab('new')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${sidebarTab==='new'?'bg-red-50 text-red-700':'hover:bg-gray-50'}`}>
+                  <PlusCircle className="w-5 h-5" /> New Request
+                </button>
+                <button onClick={() => setSidebarTab('active')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${sidebarTab==='active'?'bg-red-50 text-red-700':'hover:bg-gray-50'}`}>
+                  <Clock className="w-5 h-5" /> Active Tickets
+                </button>
+                <button onClick={() => setSidebarTab('past')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${sidebarTab==='past'?'bg-red-50 text-red-700':'hover:bg-gray-50'}`}>
+                  <CheckCircle2 className="w-5 h-5" /> Past Tickets
+                </button>
+                {/* Check Status is already present in main tabs */}
+              </nav>
             </div>
-          </div>
-        </div>
+          </aside>
 
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="border-b border-gray-200">
-            <div className="flex">
-              <button
-                onClick={() => setActiveTab('request')}
-                className={`flex-1 px-6 py-4 text-center font-semibold border-b-2 transition-colors ${
-                  activeTab === 'request'
-                    ? 'border-red-600 text-red-600 bg-red-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <FileText className="w-5 h-5 inline mr-2" />
-                Request Help
-              </button>
-              <button
-                onClick={() => setActiveTab('status')}
-                className={`flex-1 px-6 py-4 text-center font-semibold border-b-2 transition-colors ${
-                  activeTab === 'status'
-                    ? 'border-red-600 text-red-600 bg-red-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Search className="w-5 h-5 inline mr-2" />
-                Check Status
-              </button>
-            </div>
-          </div>
+          <section className="lg:col-span-9">
+            {sidebarTab === 'new' && (
+              <>
+                <div className="text-center mb-8">
+                  <AlertTriangle className="w-16 h-16 text-red-600 mx-auto mb-4" />
+                  <h2 className="text-4xl font-bold text-gray-900 mb-2">Emergency Assistance</h2>
+                  <p className="text-lg text-gray-600">Report your situation and get connected with relief teams</p>
+                </div>
+
+                <div className="bg-red-50 border-l-4 border-red-600 p-6 rounded-lg mb-8">
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
+                    <div>
+                      <h3 className="font-bold text-red-900 text-lg mb-1">Life-Threatening Emergency?</h3>
+                      <p className="text-red-800">
+                        If you're in immediate danger, call local emergency services first (112, 100, 108). 
+                        Then use this form to coordinate relief efforts.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                  <div className="border-b border-gray-200">
+                    <div className="flex">
+                      <button
+                        onClick={() => setActiveTab('request')}
+                        className={`flex-1 px-6 py-4 text-center font-semibold border-b-2 transition-colors ${
+                          activeTab === 'request'
+                            ? 'border-red-600 text-red-600 bg-red-50'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        <FileText className="w-5 h-5 inline mr-2" />
+                        Request Help
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('status')}
+                        className={`flex-1 px-6 py-4 text-center font-semibold border-b-2 transition-colors ${
+                          activeTab === 'status'
+                            ? 'border-red-600 text-red-600 bg-red-50'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        <Search className="w-5 h-5 inline mr-2" />
+                        Check Status
+                      </button>
+                    </div>
+                  </div>
 
           <div className="p-6 sm:p-8">
             {activeTab === 'request' ? (
@@ -460,6 +520,39 @@ const Dashboard = () => {
 
         <div className="text-center mt-8 text-gray-500 text-sm">
           <p>Emergency Response System</p>
+                </div>
+              </>
+            )}
+
+            {/* No separate status section; use the top tabs */}
+
+            {(sidebarTab === 'active' || sidebarTab === 'past') && (
+              <div className="bg-white rounded-xl shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-900">
+                    {sidebarTab === 'active' ? 'Active Tickets' : 'Past Tickets'}
+                  </h3>
+                </div>
+                {loadingTickets ? (
+                  <p className="text-gray-500">Loading tickets...</p>
+                ) : tickets.length === 0 ? (
+                  <p className="text-gray-500">No tickets found.</p>
+                ) : (
+                  <ul className="divide-y divide-gray-200">
+                    {tickets.map((t) => (
+                      <li key={t.id} className="py-3 flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">{t.title || `Ticket ${t.id}`}</p>
+                          <p className="text-sm text-gray-500">{t.summary || t.status}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${t.status==='active'?'bg-yellow-100 text-yellow-800':'bg-green-100 text-green-800'}`}>{t.status}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </section>
         </div>
       </div>
     </div>
