@@ -60,11 +60,50 @@ const Dashboard = () => {
       [field]: Math.max(0, prev[field] + delta)
     }));
   };
+  const handleSubmit = async () => {
+    try {
+      const payload = {
+        ...formData,
+        isSOS,
+      };
 
-  const handleSubmit = () => {
-    console.log('Submitting request:', { ...formData, isSOS });
-    alert('Request submitted! Your ticket ID: DA-' + Date.now());
+      console.log("Submitting request:", payload);
+      setLoadingTickets(true);
+      const res = await API.post("/tickets", payload);
+
+      if (res.status === 201 && res.data?.ticketId) {
+        alert(`✅ Request submitted! Your Ticket ID: ${res.data.ticketId}`);
+        
+        setFormData({
+          name: '',
+          phone: '',
+          address: '',
+          landmark: '',
+          adults: 1,
+          children: 0,
+          elderly: 0,
+          helpTypes: [],
+          medicalNeeds: [],
+          description: '',
+          ticketId: ''
+        });
+        setIsSOS(false);
+      } else {
+        alert("Failed to submit request. Please try again.");
+      }
+
+    } catch (error) {
+      console.error("Error submitting ticket:", error);
+      alert("Something went wrong. Please check your network or try again.");
+    } finally {
+      setLoadingTickets(false);
+    }
   };
+
+  // const handleSubmit = () => {
+  //   console.log('Submitting request:', { ...formData, isSOS });
+  //   alert('Request submitted! Your ticket ID: DA-' + Date.now());
+  // };
 
   const handleStatusCheck = () => {
     console.log('Checking status for:', formData.ticketId);
