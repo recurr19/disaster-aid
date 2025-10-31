@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, Menu, X, PlusCircle, Clock, CheckCircle2 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import API from '../api/axios';
+import TicketSuccessModal from "../components/TicketSuccessModal";
+
 
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
@@ -12,6 +14,8 @@ const Dashboard = () => {
   const [sidebarTab, setSidebarTab] = useState('new'); // 'new' | 'active' | 'past'
   const [tickets, setTickets] = useState([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
+  const [newTicketId, setNewTicketId] = useState("");
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isSOS, setIsSOS] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -72,7 +76,8 @@ const Dashboard = () => {
       const res = await API.post("/tickets", payload);
 
       if (res.status === 201 && res.data?.ticketId) {
-        alert(`✅ Request submitted! Your Ticket ID: ${res.data.ticketId}`);
+        setNewTicketId(res.data.ticketId);
+        setShowSuccessModal(true);
         
         setFormData({
           name: '',
@@ -594,7 +599,14 @@ const Dashboard = () => {
           </section>
         </div>
       </div>
+      {showSuccessModal && (
+      <TicketSuccessModal
+        ticketId={newTicketId}
+        onClose={() => setShowSuccessModal(false)}
+      />
+    )}
     </div>
+    
   );
 };
 
