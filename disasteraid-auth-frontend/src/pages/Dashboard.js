@@ -5,6 +5,21 @@ import { AuthContext } from '../context/AuthContext';
 import API from '../api/axios';
 import TicketSuccessModal from "../components/TicketSuccessModal";
 
+// --- Leaflet / Map imports (add these near the top with other imports) ---
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix Leaflet's default icon URLs when bundling with CRA / webpack
+// Place this once in this file (or a shared file) so the marker icons show up
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
+
+
 
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
@@ -19,6 +34,57 @@ const Dashboard = () => {
   const [isSOS, setIsSOS] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [coords, setCoords] = useState({ lat: null, lng: null });
+  
+  // File upload state
+  const [files, setFiles] = useState([]);
+  const [uploadError, setUploadError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  
+  // Accepted file types
+  const acceptedTypes = {
+    'image/jpeg': ['.jpg', '.jpeg'],
+    'image/png': ['.png'],
+    'audio/mpeg': ['.mp3'],
+    'audio/wav': ['.wav'],
+    'audio/ogg': ['.ogg']
+  };
+
+  const handleFileSelect = (event) => {
+    const selectedFiles = Array.from(event.target.files);
+    setUploadError(null);
+
+    // Validate file types
+    const invalidFiles = selectedFiles.filter(file => 
+      !Object.keys(acceptedTypes).some(type => file.type === type)
+    );
+
+    if (invalidFiles.length > 0) {
+      setUploadError('Please upload only images (JPG, PNG) or audio files (MP3, WAV, OGG)');
+      return;
+    }
+
+    // Validate total size (10MB limit per file)
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+    const oversizedFiles = selectedFiles.filter(file => file.size > MAX_SIZE);
+    
+    if (oversizedFiles.length > 0) {
+      setUploadError('Each file must be less than 10MB');
+      return;
+    }
+
+    // Add new files to state
+    setFiles(prev => [...prev, ...selectedFiles]);
+  };
+
+  const removeFile = (index) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+    setUploadError(null);
+  };
+
+  const isImage = (file) => file.type.startsWith('image/');
+  const isAudio = (file) => file.type.startsWith('audio/');
   
   const [formData, setFormData] = useState({
     name: '',
@@ -66,14 +132,39 @@ const Dashboard = () => {
   };
   const handleSubmit = async () => {
     try {
-      const payload = {
-        ...formData,
-        isSOS,
-      };
-
-      console.log("Submitting request:", payload);
       setLoadingTickets(true);
-      const res = await API.post("/tickets", payload);
+      setUploading(true);
+
+      // Create FormData to handle file uploads
+      const formDataToSend = new FormData();
+      
+      // Append basic form data
+      Object.entries({ ...formData, isSOS }).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          // Handle arrays (like helpTypes and medicalNeeds)
+          value.forEach(item => formDataToSend.append(key + '[]', item));
+        } else {
+          formDataToSend.append(key, value);
+        }
+      });
+
+      // Append coordinates if available
+      if (coords.lat != null && coords.lng != null) {
+        formDataToSend.append('latitude', coords.lat);
+        formDataToSend.append('longitude', coords.lng);
+      }
+
+      // Append files
+      files.forEach(file => {
+        formDataToSend.append('files[]', file);
+      });
+
+      console.log("Submitting request with files");
+      const res = await API.post("/tickets", formDataToSend, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
       if (res.status === 201 && res.data?.ticketId) {
         setNewTicketId(res.data.ticketId);
@@ -102,17 +193,49 @@ const Dashboard = () => {
       alert("Something went wrong. Please check your network or try again.");
     } finally {
       setLoadingTickets(false);
+      setUploading(false);
+      // Clear files after successful submission
+      setFiles([]);
     }
   };
-
-  // const handleSubmit = () => {
-  //   console.log('Submitting request:', { ...formData, isSOS });
-  //   alert('Request submitted! Your ticket ID: DA-' + Date.now());
-  // };
 
   const handleStatusCheck = () => {
     console.log('Checking status for:', formData.ticketId);
     alert('Status check for ticket: ' + formData.ticketId);
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!('geolocation' in navigator)) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCoords({ lat: latitude, lng: longitude });
+        setLocating(false);
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        // Provide a simple human-friendly message
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            alert('Location permission denied. Please allow location access and try again.');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            alert('Location information is unavailable.');
+            break;
+          case error.TIMEOUT:
+            alert('Location request timed out. Please try again.');
+            break;
+          default:
+            alert('Unable to retrieve location.');
+        }
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   useEffect(() => {
@@ -371,11 +494,41 @@ const Dashboard = () => {
                   </div>
                   <button
                     type="button"
-                    className="mb-4 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                    onClick={handleUseCurrentLocation}
+                    disabled={locating}
+                    className={`mb-4 px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 ${locating ? 'bg-gray-400 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                   >
                     <MapPin className="w-5 h-5" />
-                    <span>Use Current Location</span>
+                    <span>{locating ? 'Locating...' : 'Use Current Location'}</span>
                   </button>
+                  {coords.lat != null && coords.lng != null && (
+                    <div className="mt-2 text-sm text-gray-700">
+                      <div>Latitude: {coords.lat.toFixed(6)}</div>
+                      <div>Longitude: {coords.lng.toFixed(6)}</div>
+
+                      {/* Map */}
+                      <div className="mt-4 rounded-lg overflow-hidden border">
+                        <MapContainer
+                          center={[coords.lat, coords.lng]}
+                          zoom={15}
+                          scrollWheelZoom={true}
+                          style={{ height: '300px', width: '100%' }}
+                        >
+                          <TileLayer
+                            attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          />
+                          <Marker position={[coords.lat, coords.lng]}>
+                            <Popup>
+                              Current location<br />
+                              Lat: {coords.lat.toFixed(6)}, Lng: {coords.lng.toFixed(6)}
+                            </Popup>
+                          </Marker>
+                        </MapContainer>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Address/Area</label>
@@ -494,10 +647,71 @@ const Dashboard = () => {
                     <Camera className="w-5 h-5 text-gray-700" />
                     <h3 className="text-xl font-bold text-gray-900">Photos/Evidence (Optional)</h3>
                   </div>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer">
-                    <Camera className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600 font-medium mb-1">Click to add photos or audio</p>
-                    <p className="text-gray-500 text-sm">Images help responders understand the situation better</p>
+                  
+                  <div className="space-y-4">
+                    <label 
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer block relative"
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleFileSelect({ target: { files: e.dataTransfer.files } });
+                      }}
+                    >
+                      <input
+                        type="file"
+                        multiple
+                        accept=".jpg,.jpeg,.png,.mp3,.wav,.ogg"
+                        onChange={handleFileSelect}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        disabled={uploading}
+                      />
+                      <Camera className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600 font-medium mb-1">
+                        {uploading ? 'Uploading...' : 'Click or drag files here'}
+                      </p>
+                      <p className="text-gray-500 text-sm">
+                        Upload photos or audio files (JPG, PNG, MP3, WAV, OGG)
+                      </p>
+                      <p className="text-gray-500 text-sm mt-1">Max 10MB per file</p>
+                    </label>
+
+                    {uploadError && (
+                      <div className="text-red-600 text-sm text-center">{uploadError}</div>
+                    )}
+
+                    {files.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                        {files.map((file, index) => (
+                          <div key={index} className="relative group">
+                            {isImage(file) ? (
+                              <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                                <img
+                                  src={URL.createObjectURL(file)}
+                                  alt={`Upload preview ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : isAudio(file) && (
+                              <div className="aspect-square rounded-lg bg-gray-100 flex items-center justify-center p-4">
+                                <div className="text-center">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                  </svg>
+                                  <p className="text-xs text-gray-500 truncate">{file.name}</p>
+                                </div>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => removeFile(index)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              type="button"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

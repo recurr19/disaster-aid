@@ -14,7 +14,14 @@ const ticketSchema = new mongoose.Schema({
   description: String,
   isSOS: Boolean,
   status: { type: String, default: "active" },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  files: [{
+    filename: String,
+    originalname: String,
+    mimetype: String,
+    path: String,
+    size: Number
+  }]
 });
 
 const Ticket = mongoose.model("Ticket", ticketSchema);
