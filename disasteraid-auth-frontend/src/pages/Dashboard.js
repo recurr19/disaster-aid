@@ -5,6 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 import API from '../api/axios';
 import TicketSuccessModal from "../components/TicketSuccessModal";
 import NGODashboard from "../components/ngo/NGODashboard";
+import AuthorityDashboard from "../components/authority/AuthorityDashboard";
 
 // --- Leaflet / Map imports (add these near the top with other imports) ---
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -523,44 +524,7 @@ const Dashboard = () => {
 
 
   if (user.role === 'authority') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-white rounded-lg shadow-2xl p-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-3xl font-bold text-gray-800">Authority Control Room</h2>
-              <button 
-                onClick={handleLogout}
-                className="flex items-center space-x-2 px-4 py-2 text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="text-sm font-medium">Logout</span>
-              </button>
-            </div>
-            <p className="text-gray-600 mb-6">Welcome, {user?.name}!</p>
-            <div className="grid md:grid-cols-4 gap-6">
-              <div className="bg-red-50 p-6 rounded-lg border-l-4 border-red-500">
-                <h3 className="font-semibold text-lg mb-2">Critical (SOS)</h3>
-                <p className="text-3xl font-bold text-red-600">3</p>
-              </div>
-              <div className="bg-yellow-50 p-6 rounded-lg border-l-4 border-yellow-500">
-                <h3 className="font-semibold text-lg mb-2">High Priority</h3>
-                <p className="text-3xl font-bold text-yellow-600">18</p>
-              </div>
-              <div className="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
-                <h3 className="font-semibold text-lg mb-2">Active Teams</h3>
-                <p className="text-3xl font-bold text-blue-600">45</p>
-              </div>
-              <div className="bg-green-50 p-6 rounded-lg border-l-4 border-green-500">
-                <h3 className="font-semibold text-lg mb-2">Resolved Today</h3>
-                <p className="text-3xl font-bold text-green-600">89</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <AuthorityDashboard user={user} onLogout={handleLogout} />;
   }
 
   return (

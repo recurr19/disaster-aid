@@ -1,0 +1,207 @@
+/* === Layout === */
+.container-main {
+  min-height: 100vh;
+  background: #fff5f5;
+}
+
+/* === Cards === */
+.card {
+  background: #ffffff;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+
+/* === Inputs === */
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  outline: none;
+  transition: 0.2s border-color, 0.2s box-shadow;
+}
+
+.input-field:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3);
+}
+
+/* === Textarea === */
+.textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  resize: none;
+  outline: none;
+  transition: 0.2s border-color, 0.2s box-shadow;
+}
+
+.textarea:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3);
+}
+
+/* === Primary Button === */
+.button-primary {
+  background: #2563eb;
+  color: #ffffff;
+  padding: 1rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 1.125rem;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s background-color, 0.2s box-shadow;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.button-primary:hover {
+  background: #1e40af;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+
+/* === Secondary Button === */
+.button-secondary {
+  background: #e5e7eb;
+  color: #374151;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.button-secondary:hover {
+  background: #d1d5db;
+}
+
+/* === Checkbox Row === */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.checkbox-label:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+/* === Status Badge === */
+.badge-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.badge-status.active {
+  background: #fef08a;
+  color: #854d0e;
+}
+
+.badge-status.closed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* === Header & Nav Enhancements === */
+.header {
+  background: #ffffff;
+  border-bottom: 1px solid #eef2f7;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.header-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.header-badge {
+  background: #fff6f6;
+  border: 1px solid #fee2e2;
+  color: #991b1b;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.nav-bar {
+  background: transparent;
+  padding: 0.5rem 0;
+}
+
+.nav-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.nav-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid transparent;
+  color: #475569;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: 0.375rem;
+}
+
+.nav-button:hover {
+  color: #111827;
+  background: rgba(255,255,255,0.6);
+}
+
+.nav-button.active {
+  color: #b91c1c;
+  border-bottom-color: #fca5a5;
+  background: linear-gradient(90deg, rgba(254,242,242,0.6), rgba(255,255,255,0));
+}
+
+.tabs-scroll {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
