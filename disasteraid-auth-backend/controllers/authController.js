@@ -1,21 +1,16 @@
 const User = require('../models/User');
+const RegisteredNGO = require('../models/RegisteredNGO');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 /**
  * @route   POST /api/auth/register
  * @desc    Register a new user (Citizen / NGO / Authority)
- * @body    {
- *            name: String,
- *            email: String,
- *            password: String,
- *            role: String ('citizen' | 'ngo' | 'authority')
- *          }
- * @returns { token: String, user: { id, name, email, role } }
  */
 exports.registerUser = async (req, res) => {
   try {
     const { name, email, password, role, ngoProfile } = req.body;
+
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'All fields are required' });
     }
@@ -25,12 +20,18 @@ exports.registerUser = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // 1️⃣ Create Base User Account
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
-      role,
-      ngoProfile: role === 'ngo' && ngoProfile ? {
+      role
+    });
+
+    // 2️⃣ If NGO — Create NGO Profile (separate model)
+    if (role === 'ngo' && ngoProfile) {
+      await RegisteredNGO.create({
+        user: user._id,
         organizationName: ngoProfile.organizationName,
         contactPerson: ngoProfile.contactPerson,
         phone: ngoProfile.phone,
@@ -38,10 +39,17 @@ exports.registerUser = async (req, res) => {
         areasOfWork: Array.isArray(ngoProfile.areasOfWork) ? ngoProfile.areasOfWork : [],
         availability: ngoProfile.availability,
         resources: ngoProfile.resources,
-        registrationId: ngoProfile.registrationId
-      } : undefined
-    });
+        registrationId: ngoProfile.registrationId,
 
+        // ✅ Added Capacity Fields
+        foodCapacity: ngoProfile.foodCapacity || 0,
+        medicalTeamCount: ngoProfile.medicalTeamCount || 0,
+        vehiclesAvailable: ngoProfile.vehiclesAvailable || 0,
+        coverageRadius: ngoProfile.coverageRadius || 5
+      });
+    }
+
+    // 3️⃣ Generate Token
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
@@ -54,12 +62,12 @@ exports.registerUser = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
-        ngoProfile: user.ngoProfile
+        role: user.role
       }
     });
+
   } catch (err) {
-    console.error(err);
+    console.error("REGISTER ERROR:", err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -67,8 +75,6 @@ exports.registerUser = async (req, res) => {
 /**
  * @route   POST /api/auth/login
  * @desc    Login user
- * @body    { email: String, password: String }
- * @returns { token: String, user: { id, name, email, role } }
  */
 exports.loginUser = async (req, res) => {
   try {
@@ -91,8 +97,9 @@ exports.loginUser = async (req, res) => {
       token,
       user: { id: user._id, name: user.name, email: user.email, role: user.role }
     });
+
   } catch (err) {
-    console.error(err);
+    console.error("LOGIN ERROR:", err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -100,15 +107,20 @@ exports.loginUser = async (req, res) => {
 /**
  * @route   GET /api/auth/profile
  * @desc    Get logged-in user profile
- * @header  Authorization: Bearer <token>
- * @returns { user: { id, name, email, role } }
  */
 exports.getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
-    res.json({ user });
+
+    let ngoProfile = null;
+    if (user.role === 'ngo') {
+      ngoProfile = await RegisteredNGO.findOne({ user: user._id });
+    }
+
+    return res.json({ user, ngoProfile });
+
   } catch (err) {
-    console.error(err);
+    console.error("PROFILE ERROR:", err);
     res.status(500).json({ message: 'Server error' });
   }
 };

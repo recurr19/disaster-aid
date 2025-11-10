@@ -1,0 +1,54 @@
+/* ====== Container ====== */
+.requests-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ====== Request Card ====== */
+.request-card {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid #f1eaea;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.request-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.10);
+}
+
+/* Info */
+.request-info h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #111;
+  margin-bottom: 0.3rem;
+}
+
+.request-info p {
+  font-size: 0.9rem;
+  color: #555;
+  margin: 1px 0;
+}
+
+/* Status Dropdown */
+.status-dropdown {
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db;
+  font-size: 0.9rem;
+  outline: none;
+  cursor: pointer;
+  background: white;
+}
+
+/* Status Colors (Optional: matches Citizen UI) */
+.status-dispatched { color: #2563eb; font-weight: 600; }
+.status-pending { color: #f97316; font-weight: 600; }
+.status-resolved { color: #16a34a; font-weight: 600; }

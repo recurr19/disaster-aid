@@ -4,6 +4,7 @@ import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, Menu, X,
 import { AuthContext } from '../context/AuthContext';
 import API from '../api/axios';
 import TicketSuccessModal from "../components/TicketSuccessModal";
+import NGODashboard from "../components/ngo/NGODashboard";
 
 // --- Leaflet / Map imports (add these near the top with other imports) ---
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -276,31 +277,9 @@ const Dashboard = () => {
   if (!user) return null;
 
   if (user.role === 'ngo') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">NGO/Volunteer Dashboard</h2>
-            <p className="text-gray-600 mb-6">Welcome, {user?.name}!</p>
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
-                <h3 className="font-semibold text-lg mb-2">Active Requests</h3>
-                <p className="text-3xl font-bold text-blue-600">24</p>
-              </div>
-              <div className="bg-green-50 p-6 rounded-lg border-l-4 border-green-500">
-                <h3 className="font-semibold text-lg mb-2">Completed</h3>
-                <p className="text-3xl font-bold text-green-600">156</p>
-              </div>
-              <div className="bg-orange-50 p-6 rounded-lg border-l-4 border-orange-500">
-                <h3 className="font-semibold text-lg mb-2">In Progress</h3>
-                <p className="text-3xl font-bold text-orange-600">12</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  return <NGODashboard />;
+}
+
 
   if (user.role === 'authority') {
     return (

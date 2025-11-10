@@ -21,20 +21,7 @@ const userSchema = new mongoose.Schema({
     type: String, 
     enum: ['citizen', 'ngo', 'authority'], 
     required: true 
-  },
-
-  // Optional NGO/Volunteer profile (only for role === 'ngo')
-  ngoProfile: {
-    organizationName: { type: String },
-    contactPerson: { type: String },
-    phone: { type: String },
-    location: { type: String },
-    areasOfWork: [{ type: String }],
-    availability: { type: String, enum: ['full-time', 'part-time', 'on-call'], default: 'full-time' },
-    resources: { type: String },
-    registrationId: { type: String }
   }
-
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

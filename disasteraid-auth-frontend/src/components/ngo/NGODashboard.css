@@ -1,0 +1,208 @@
+/* ====== NGO Dashboard Global Layout ====== */
+.container-main {
+  min-height: 100vh;
+  background: #fef6f5; /* soft warm background like Citizen UI */
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.ngo-root h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 0.25rem;
+}
+
+.ngo-root p {
+  color: #555;
+}
+
+
+/* ====== Card Style (Matches Citizen UI) ====== */
+.card {
+  background: #ffffff !important;
+  border-radius: 14px;
+  padding: 1.5rem;
+  border: 1px solid #f1eaea;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.10);
+}
+
+
+/* ====== Stats Grid ====== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stats-grid .card p:first-child {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.stats-grid .card p:last-child {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #111;
+}
+
+
+/* ====== Tabs ====== */
+.tab-row {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.6rem 1rem;
+  color: #444;
+  font-weight: 500;
+  border-bottom: 3px solid transparent;
+  transition: color .2s ease, border-color .2s ease;
+}
+
+.tab-button:hover {
+  color: #222;
+}
+
+.tab-button.active {
+  color: #2563eb;
+  font-weight: 700;
+  border-bottom-color: #2563eb;
+}
+
+
+/* ====== Buttons ====== */
+.button-primary {
+  background: #2563eb;
+  color: #ffffff;
+  padding: 1rem 1.5rem;
+  border-radius: 0.6rem;
+  font-weight: 600;
+  font-size: 1.05rem;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s background-color, 0.25s box-shadow;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.button-primary:hover {
+  background: #1e40af;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.14);
+}
+
+.button-secondary {
+  background: #e5e7eb;
+  color: #374151;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  border: none;
+}
+
+.button-secondary:hover {
+  background: #d1d5db;
+}
+
+
+/* ====== Form Inputs ====== */
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  outline: none;
+  transition: 0.2s border-color, 0.2s box-shadow;
+}
+
+.input-field:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3);
+}
+
+.textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  resize: none;
+  outline: none;
+  transition: 0.2s border-color, 0.2s box-shadow;
+  font-family: inherit;
+}
+
+.textarea:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3);
+}
+
+
+/* ====== Checkbox Items ====== */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.checkbox-label:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+
+/* ====== Lists grid ====== */
+.list-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+
+/* ====== Status Badges (Matches Citizen UI Tokens) ====== */
+.badge-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.badge-status.active {
+  background: #fef08a;
+  color: #854d0e;
+}
+
+.badge-status.closed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-status.sos {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge-status.pending {
+  background: #e0e7ff;
+  color: #3730a3;
+}
