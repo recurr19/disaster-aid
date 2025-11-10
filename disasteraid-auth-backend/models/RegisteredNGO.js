@@ -37,4 +37,23 @@ const registeredNGOSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+// GeoJSON location for spatial queries (optional). Stored as [lng, lat]
+registeredNGOSchema.add({
+  locationGeo: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [lng, lat]
+      index: '2dsphere',
+      required: false
+    }
+  }
+});
+
+// Ensure a 2dsphere index exists for geo queries
+registeredNGOSchema.index({ locationGeo: '2dsphere' });
+
 module.exports = mongoose.model('RegisteredNGO', registeredNGOSchema);

@@ -36,6 +36,11 @@ exports.registerUser = async (req, res) => {
         contactPerson: ngoProfile.contactPerson,
         phone: ngoProfile.phone,
         location: ngoProfile.location,
+        // optional geo coordinates: expected as [lng, lat]
+        locationGeo: ngoProfile.coordinates && Array.isArray(ngoProfile.coordinates) && ngoProfile.coordinates.length === 2 ? {
+          type: 'Point',
+          coordinates: ngoProfile.coordinates
+        } : undefined,
         areasOfWork: Array.isArray(ngoProfile.areasOfWork) ? ngoProfile.areasOfWork : [],
         availability: ngoProfile.availability,
         resources: ngoProfile.resources,

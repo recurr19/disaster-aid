@@ -1,3 +1,3 @@
-to run the server 
+`to run the server 
     npm run dev - nodemon
     node server.js

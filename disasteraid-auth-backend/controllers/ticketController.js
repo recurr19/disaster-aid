@@ -1,5 +1,8 @@
+const fs = require('fs');
 const Ticket = require("../models/Ticket");
+const RegisteredNGO = require("../models/RegisteredNGO");
 const generateTicketId = require("../utils/generateTicketId");
+const { matchTicket } = require('../utils/matching');
 
 const submitHelpRequest = async (req, res) => {
   try {
@@ -16,16 +19,31 @@ const submitHelpRequest = async (req, res) => {
     })) || [];
 
     // Create ticket with files
-    const ticket = new Ticket({
+    const parsedHelpTypes = data.helpTypes ? (Array.isArray(data.helpTypes) ? data.helpTypes : [data.helpTypes]) : [];
+    const parsedMedicalNeeds = data.medicalNeeds ? (Array.isArray(data.medicalNeeds) ? data.medicalNeeds : [data.medicalNeeds]) : [];
+
+    const ticketPayload = {
       ...data,
       ticketId,
       files,
-      // Parse arrays that came as strings from FormData
-      helpTypes: data.helpTypes ? 
-        (Array.isArray(data.helpTypes) ? data.helpTypes : [data.helpTypes]) : [],
-      medicalNeeds: data.medicalNeeds ? 
-        (Array.isArray(data.medicalNeeds) ? data.medicalNeeds : [data.medicalNeeds]) : [],
-    });
+      helpTypes: parsedHelpTypes,
+      medicalNeeds: parsedMedicalNeeds,
+    };
+
+    // Accept optional coordinates: either as ticket.locationGeo (object) or data.coordinates (array [lng, lat])
+    if (data.locationGeo && Array.isArray(data.locationGeo.coordinates) && data.locationGeo.coordinates.length === 2) {
+      ticketPayload.locationGeo = {
+        type: 'Point',
+        coordinates: data.locationGeo.coordinates
+      };
+    } else if (data.coordinates && Array.isArray(data.coordinates) && data.coordinates.length === 2) {
+      ticketPayload.locationGeo = {
+        type: 'Point',
+        coordinates: data.coordinates
+      };
+    }
+
+    const ticket = new Ticket(ticketPayload);
 
     await ticket.save();
 
