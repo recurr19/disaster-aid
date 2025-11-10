@@ -1,25 +1,26 @@
 const express = require("express");
-const {
-  submitHelpRequest,
-  getTickets,
-  getMatchesForTicket,
-  assignBestNGO
+const router = express.Router();
+
+const { 
+  submitHelpRequest, 
+  getTickets, 
+  getMatchesForTicket, 
+  assignBestNGO 
 } = require("../controllers/ticketController");
+
 const upload = require('../middleware/uploadMiddleware');
 const { protect } = require('../middleware/authMiddleware');
 
-const router = express.Router();
+// Submit Help Request (Public)
+router.post("/", upload.array("files[]", 10), submitHelpRequest);
 
-// Handle multiple files with field name 'files[]'
-router.post("/", upload.array('files[]', 10), submitHelpRequest);
-
-// Get tickets with optional status filter (requires authentication)
+// Get Tickets (Protected for Authority & Citizen Dashboard)
 router.get("/", protect, getTickets);
 
-// Get matching NGOs for a ticket
-router.get('/match/:ticketId', getMatchesForTicket);
+// Get NGO matches for a ticket
+router.get("/match/:ticketId", protect, getMatchesForTicket);
 
-// Assign the best NGO to a ticket (simulated notification)
-router.post('/assign/:ticketId', express.json(), assignBestNGO);
+// Assign best NGO to handle the ticket
+router.post("/assign/:ticketId", protect, assignBestNGO);
 
 module.exports = router;

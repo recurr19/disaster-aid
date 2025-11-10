@@ -9,7 +9,6 @@ const submitHelpRequest = async (req, res) => {
     const data = req.body;
     const ticketId = generateTicketId();
 
-    // Process files if they exist
     const files = req.files?.map(file => ({
       filename: file.filename,
       originalname: file.originalname,
@@ -18,7 +17,6 @@ const submitHelpRequest = async (req, res) => {
       size: file.size
     })) || [];
 
-    // Create ticket with files
     const parsedHelpTypes = data.helpTypes ? (Array.isArray(data.helpTypes) ? data.helpTypes : [data.helpTypes]) : [];
     const parsedMedicalNeeds = data.medicalNeeds ? (Array.isArray(data.medicalNeeds) ? data.medicalNeeds : [data.medicalNeeds]) : [];
 
@@ -30,7 +28,6 @@ const submitHelpRequest = async (req, res) => {
       medicalNeeds: parsedMedicalNeeds,
     };
 
-    // Accept optional coordinates: either as ticket.locationGeo (object) or data.coordinates (array [lng, lat])
     if (data.locationGeo && Array.isArray(data.locationGeo.coordinates) && data.locationGeo.coordinates.length === 2) {
       ticketPayload.locationGeo = {
         type: 'Point',
@@ -44,7 +41,6 @@ const submitHelpRequest = async (req, res) => {
     }
 
     const ticket = new Ticket(ticketPayload);
-
     await ticket.save();
 
     res.status(201).json({
@@ -59,7 +55,7 @@ const submitHelpRequest = async (req, res) => {
     });
   } catch (error) {
     console.error("Error submitting help request:", error);
-    // If files were uploaded but ticket save failed, try to clean up
+
     if (req.files) {
       req.files.forEach(file => {
         try {
@@ -78,17 +74,15 @@ const submitHelpRequest = async (req, res) => {
 const getTickets = async (req, res) => {
   try {
     const { status } = req.query;
-    
-    // Build query filter
+
     const filter = {};
     if (status) {
       filter.status = status;
     }
 
-    // Fetch tickets from database, sorted by creation date (newest first)
     const tickets = await Ticket.find(filter)
       .sort({ createdAt: -1 })
-      .select('-files.path') // Exclude file paths for security
+      .select('-files.path')
       .lean();
 
     res.status(200).json({
@@ -126,4 +120,20 @@ const getTickets = async (req, res) => {
   }
 };
 
-module.exports = { submitHelpRequest, getTickets };
+const getMatchesForTicket = async (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Matching logic not implemented yet.",
+    ticketId: req.params.ticketId
+  });
+};
+
+const assignBestNGO = async (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "NGO assignment logic not implemented yet.",
+    ticketId: req.params.ticketId
+  });
+};
+
+module.exports = { submitHelpRequest, getTickets, getMatchesForTicket, assignBestNGO };
