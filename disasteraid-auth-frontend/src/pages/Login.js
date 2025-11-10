@@ -5,9 +5,18 @@ import { useNavigate } from 'react-router-dom';
 import './Login.css';
 
 const Login = () => {
-  const { login } = useContext(AuthContext);
+  const { login, user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user && user.role) {
+      if (user.role === 'citizen') navigate('/dashboard/citizen', { replace: true });
+      else if (user.role === 'ngo') navigate('/dashboard/ngo', { replace: true });
+      else navigate('/dashboard/authority', { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 

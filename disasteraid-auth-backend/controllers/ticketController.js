@@ -57,4 +57,53 @@ const submitHelpRequest = async (req, res) => {
   }
 };
 
-module.exports = { submitHelpRequest };
+const getTickets = async (req, res) => {
+  try {
+    const { status } = req.query;
+    
+    // Build query filter
+    const filter = {};
+    if (status) {
+      filter.status = status;
+    }
+
+    // Fetch tickets from database, sorted by creation date (newest first)
+    const tickets = await Ticket.find(filter)
+      .sort({ createdAt: -1 })
+      .select('-files.path') // Exclude file paths for security
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      count: tickets.length,
+      tickets: tickets.map(ticket => ({
+        id: ticket._id,
+        ticketId: ticket.ticketId,
+        name: ticket.name,
+        phone: ticket.phone,
+        address: ticket.address,
+        landmark: ticket.landmark,
+        adults: ticket.adults,
+        children: ticket.children,
+        elderly: ticket.elderly,
+        helpTypes: ticket.helpTypes,
+        medicalNeeds: ticket.medicalNeeds,
+        description: ticket.description,
+        isSOS: ticket.isSOS,
+        status: ticket.status,
+        createdAt: ticket.createdAt,
+        filesCount: ticket.files?.length || 0,
+        title: `${ticket.isSOS ? '🚨 SOS: ' : ''}${ticket.helpTypes?.join(', ') || 'Help Request'}`,
+        summary: ticket.description?.substring(0, 100) || 'No description'
+      }))
+    });
+  } catch (error) {
+    console.error("Error fetching tickets:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch tickets. Please try again later.",
+    });
+  }
+};
+
+module.exports = { submitHelpRequest, getTickets };

@@ -1,6 +1,6 @@
 import { useContext, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, Menu, X, PlusCircle, Clock, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, Menu, X, PlusCircle, Clock, CheckCircle2, LogOut } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import API from '../api/axios';
 import TicketSuccessModal from "../components/TicketSuccessModal";
@@ -23,7 +23,7 @@ L.Icon.Default.mergeOptions({
 
 
 const Dashboard = () => {
-  const { user } = useContext(AuthContext);
+  const { user, logout } = useContext(AuthContext);
   const { role } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('request');
@@ -205,6 +205,11 @@ const Dashboard = () => {
     alert('Status check for ticket: ' + formData.ticketId);
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
   const handleUseCurrentLocation = () => {
     if (!('geolocation' in navigator)) {
       alert('Geolocation is not supported by your browser.');
@@ -286,7 +291,17 @@ const Dashboard = () => {
       <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="bg-white rounded-lg shadow-2xl p-8">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">Authority Control Room</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-3xl font-bold text-gray-800">Authority Control Room</h2>
+              <button 
+                onClick={handleLogout}
+                className="flex items-center space-x-2 px-4 py-2 text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="text-sm font-medium">Logout</span>
+              </button>
+            </div>
             <p className="text-gray-600 mb-6">Welcome, {user?.name}!</p>
             <div className="grid md:grid-cols-4 gap-6">
               <div className="bg-red-50 p-6 rounded-lg border-l-4 border-red-500">
@@ -330,6 +345,14 @@ const Dashboard = () => {
               <div className={`w-2 h-2 rounded-full ${isOffline ? 'bg-red-600' : 'bg-green-600'}`}></div>
               <span className="text-sm font-medium">{isOffline ? 'Offline' : 'Online'}</span>
             </div>
+            <button 
+              onClick={handleLogout}
+              className="flex items-center space-x-2 px-3 py-2 text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="text-sm font-medium hidden sm:inline">Logout</span>
+            </button>
             <button className="lg:hidden" onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
