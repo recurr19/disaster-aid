@@ -92,6 +92,8 @@ const getTickets = async (req, res) => {
         isSOS: ticket.isSOS,
         status: ticket.status,
         createdAt: ticket.createdAt,
+        batteryLevel: ticket.batteryLevel,
+        networkStrength: ticket.networkStrength,
         filesCount: ticket.files?.length || 0,
         title: `${ticket.isSOS ? '🚨 SOS: ' : ''}${ticket.helpTypes?.join(', ') || 'Help Request'}`,
         summary: ticket.description?.substring(0, 100) || 'No description'

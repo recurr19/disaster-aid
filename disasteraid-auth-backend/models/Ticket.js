@@ -15,6 +15,8 @@ const ticketSchema = new mongoose.Schema({
   isSOS: Boolean,
   status: { type: String, default: "active" },
   createdAt: { type: Date, default: Date.now },
+  batteryLevel: { type: Number, min: 0, max: 100 },
+  networkStrength: { type: Number, min: 0, max: 100 },
   files: [{
     filename: String,
     originalname: String,
