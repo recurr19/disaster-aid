@@ -1,4 +1,4 @@
-import { useContext, useState, useEffect } from 'react';
+import { useContext, useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, Menu, X, PlusCircle, Clock, CheckCircle2, LogOut } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
@@ -37,6 +37,11 @@ const Dashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [coords, setCoords] = useState({ lat: null, lng: null });
+  const [networkStrength, setNetworkStrength] = useState(100); // 0-100
+  const [batteryLevel, setBatteryLevel] = useState(100); // 0-100
+  const [isCharging, setIsCharging] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   
   // File upload state
   const [files, setFiles] = useState([]);
@@ -131,14 +136,98 @@ const Dashboard = () => {
       [field]: Math.max(0, prev[field] + delta)
     }));
   };
+
+  // Save request to localStorage for offline support
+  const saveRequestToQueue = (formDataToSend) => {
+    try {
+      const queueKey = 'disaster_aid_pending_requests';
+      const existingQueue = JSON.parse(localStorage.getItem(queueKey) || '[]');
+      
+      // Convert FormData to plain object for storage
+      const requestData = {
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        data: {},
+        files: []
+      };
+
+      // Extract form data
+      for (let [key, value] of formDataToSend.entries()) {
+        if (key === 'files[]') {
+          // Store file info (can't store actual file in localStorage)
+          requestData.files.push({
+            name: value.name,
+            type: value.type,
+            size: value.size
+          });
+        } else {
+          requestData.data[key] = value;
+        }
+      }
+
+      existingQueue.push(requestData);
+      localStorage.setItem(queueKey, JSON.stringify(existingQueue));
+      setPendingRequests(existingQueue);
+      
+      return requestData.id;
+    } catch (error) {
+      console.error('Error saving request to queue:', error);
+      return null;
+    }
+  };
+
+  // Process queued requests when network is available
+  const processQueuedRequests = useCallback(async () => {
+    if (isProcessingQueue) return;
+    
+    const queueKey = 'disaster_aid_pending_requests';
+    const queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
+    
+    if (queue.length === 0) return;
+
+    setIsProcessingQueue(true);
+
+    for (const request of queue) {
+      try {
+        // Recreate FormData from stored data
+        const formDataToSend = new FormData();
+        Object.entries(request.data).forEach(([key, value]) => {
+          formDataToSend.append(key, value);
+        });
+
+        // Try to submit
+        const res = await API.post("/tickets", formDataToSend, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        if (res.status === 201) {
+          // Remove successfully submitted request from queue
+          const updatedQueue = queue.filter(q => q.id !== request.id);
+          localStorage.setItem(queueKey, JSON.stringify(updatedQueue));
+          setPendingRequests(updatedQueue);
+          
+          console.log(`Queued request ${request.id} submitted successfully`);
+          alert(`✅ Queued emergency request submitted! Ticket ID: ${res.data.ticketId}`);
+        }
+      } catch (error) {
+        console.error(`Failed to submit queued request ${request.id}:`, error);
+        // Keep in queue to retry later
+      }
+    }
+
+    setIsProcessingQueue(false);
+  }, [isProcessingQueue]);
+
   const handleSubmit = async () => {
+    // Create FormData outside try block so it's accessible in catch
+    const formDataToSend = new FormData();
+    
     try {
       setLoadingTickets(true);
       setUploading(true);
 
-      // Create FormData to handle file uploads
-      const formDataToSend = new FormData();
-      
       // Append basic form data
       Object.entries({ ...formData, isSOS }).forEach(([key, value]) => {
         if (Array.isArray(value)) {
@@ -154,6 +243,10 @@ const Dashboard = () => {
         formDataToSend.append('latitude', coords.lat);
         formDataToSend.append('longitude', coords.lng);
       }
+
+      // Append battery and network levels
+      formDataToSend.append('batteryLevel', batteryLevel);
+      formDataToSend.append('networkStrength', networkStrength);
 
       // Append files
       files.forEach(file => {
@@ -191,7 +284,34 @@ const Dashboard = () => {
 
     } catch (error) {
       console.error("Error submitting ticket:", error);
-      alert("Something went wrong. Please check your network or try again.");
+      
+      // If network error, save to queue for later submission
+      if (networkStrength < 20 || !navigator.onLine || error.message.includes('Network')) {
+        const queueId = saveRequestToQueue(formDataToSend);
+        if (queueId) {
+          alert("⚠️ Network is weak. Your request has been saved and will be submitted automatically when connection improves.");
+          
+          // Clear form
+          setFormData({
+            name: '',
+            phone: '',
+            address: '',
+            landmark: '',
+            adults: 1,
+            children: 0,
+            elderly: 0,
+            helpTypes: [],
+            medicalNeeds: [],
+            description: '',
+            ticketId: ''
+          });
+          setIsSOS(false);
+        } else {
+          alert("Failed to save request. Please try again.");
+        }
+      } else {
+        alert("Something went wrong. Please check your network or try again.");
+      }
     } finally {
       setLoadingTickets(false);
       setUploading(false);
@@ -276,6 +396,122 @@ const Dashboard = () => {
     fetchTickets();
     return () => controller.abort();
   }, [sidebarTab, user]);
+
+  // Monitor network connection and measure actual strength via latency
+  useEffect(() => {
+    const measureNetworkStrength = async () => {
+      if (!navigator.onLine) {
+        setIsOffline(true);
+        setNetworkStrength(0);
+        return;
+      }
+
+      setIsOffline(false);
+
+      try {
+        const startTime = performance.now();
+        
+        // Ping a reliable endpoint (Google's DNS or your backend)
+        await fetch('https://dns.google/resolve?name=example.com', {
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-cache'
+        });
+
+        const endTime = performance.now();
+        const latency = endTime - startTime;
+
+        // Calculate strength based on latency (lower is better)
+        // Excellent: <100ms = 100%
+        // Good: 100-300ms = 70-99%
+        // Fair: 300-600ms = 40-69%
+        // Poor: 600-1000ms = 20-39%
+        // Very Poor: >1000ms = 1-19%
+        let strength;
+        if (latency < 100) {
+          strength = 100;
+        } else if (latency < 300) {
+          strength = 70 + Math.round((300 - latency) / 200 * 30);
+        } else if (latency < 600) {
+          strength = 40 + Math.round((600 - latency) / 300 * 30);
+        } else if (latency < 1000) {
+          strength = 20 + Math.round((1000 - latency) / 400 * 20);
+        } else {
+          strength = Math.max(1, 20 - Math.round((latency - 1000) / 200));
+        }
+
+        setNetworkStrength(Math.min(100, Math.max(0, strength)));
+      } catch (error) {
+        // If ping fails, fallback to connection API
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        if (connection && connection.downlink) {
+          // Use downlink speed (Mbps) as indicator
+          const downlink = connection.downlink;
+          if (downlink >= 10) setNetworkStrength(100);
+          else if (downlink >= 5) setNetworkStrength(80);
+          else if (downlink >= 2) setNetworkStrength(60);
+          else if (downlink >= 1) setNetworkStrength(40);
+          else if (downlink >= 0.5) setNetworkStrength(20);
+          else setNetworkStrength(10);
+        } else {
+          setNetworkStrength(50); // Unknown, assume medium
+        }
+      }
+    };
+
+    // Initial measurement
+    measureNetworkStrength();
+
+    // Re-measure every 10 seconds for real-time monitoring
+    const interval = setInterval(measureNetworkStrength, 10000);
+
+    // Listen for online/offline events
+    const handleOnline = () => measureNetworkStrength();
+    const handleOffline = () => {
+      setIsOffline(true);
+      setNetworkStrength(0);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Load pending requests from localStorage on mount
+  useEffect(() => {
+    const queueKey = 'disaster_aid_pending_requests';
+    const queue = JSON.parse(localStorage.getItem(queueKey) || '[]');
+    setPendingRequests(queue);
+  }, []);
+
+  // Auto-process queue when network improves
+  useEffect(() => {
+    if (networkStrength >= 40 && !isOffline && pendingRequests.length > 0) {
+      console.log('Network improved, processing queued requests...');
+      processQueuedRequests();
+    }
+  }, [networkStrength, isOffline, pendingRequests.length, processQueuedRequests]);
+
+  // Monitor battery level
+  useEffect(() => {
+    const updateBatteryStatus = (battery) => {
+      setBatteryLevel(Math.round(battery.level * 100));
+      setIsCharging(battery.charging);
+    };
+
+    if ('getBattery' in navigator) {
+      navigator.getBattery().then((battery) => {
+        updateBatteryStatus(battery);
+        battery.addEventListener('levelchange', () => updateBatteryStatus(battery));
+        battery.addEventListener('chargingchange', () => updateBatteryStatus(battery));
+      });
+    }
+  }, []);
 
   // No sync needed; Check Status handled inside main tabs
 
@@ -719,17 +955,86 @@ const Dashboard = () => {
 
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center space-x-4">
-                    <div className={`flex items-center space-x-2 ${isOffline ? 'text-red-600' : 'text-gray-500'}`}>
-                      <div className={`w-2 h-2 rounded-full ${isOffline ? 'bg-red-600' : 'bg-gray-400'}`}></div>
-                      <span>{isOffline ? 'Offline' : 'Online'}</span>
+                    {/* Network Signal Indicator */}
+                    <div className={`flex items-center space-x-2 ${
+                      networkStrength === 0 ? 'text-red-600' : 
+                      networkStrength < 40 ? 'text-red-500' : 
+                      networkStrength < 70 ? 'text-yellow-500' : 
+                      'text-green-600'
+                    }`}>
+                      <div className="flex items-center space-x-0.5">
+                        {/* Signal bars */}
+                        <div className={`w-1 h-2 rounded-sm ${networkStrength > 0 ? 'bg-current' : 'bg-gray-300'}`}></div>
+                        <div className={`w-1 h-3 rounded-sm ${networkStrength > 25 ? 'bg-current' : 'bg-gray-300'}`}></div>
+                        <div className={`w-1 h-4 rounded-sm ${networkStrength > 50 ? 'bg-current' : 'bg-gray-300'}`}></div>
+                        <div className={`w-1 h-5 rounded-sm ${networkStrength > 75 ? 'bg-current' : 'bg-gray-300'}`}></div>
+                      </div>
+                      <span className="font-medium">
+                        {networkStrength === 0 ? 'No Signal' : 
+                         networkStrength < 40 ? 'Weak Signal' : 
+                         networkStrength < 70 ? 'Fair Signal' : 
+                         'Strong Signal'}
+                      </span>
                     </div>
-                    <div className="flex items-center space-x-2 text-green-600">
-                      <div className="w-2 h-2 rounded-full bg-green-600"></div>
-                      <span>Battery OK</span>
+
+                    {/* Battery Level Indicator */}
+                    <div className={`flex items-center space-x-2 ${
+                      batteryLevel < 20 ? 'text-red-600' : 
+                      batteryLevel < 50 ? 'text-yellow-500' : 
+                      'text-green-600'
+                    }`}>
+                      <div className="relative w-6 h-3 border-2 border-current rounded-sm">
+                        <div className="absolute top-0 right-0 -mr-1 h-full w-0.5 bg-current rounded-r-sm"></div>
+                        <div 
+                          className={`h-full ${
+                            batteryLevel < 20 ? 'bg-red-600' : 
+                            batteryLevel < 50 ? 'bg-yellow-500' : 
+                            'bg-green-600'
+                          } transition-all duration-300`}
+                          style={{ width: `${batteryLevel}%` }}
+                        ></div>
+                      </div>
+                      <span className="font-medium">
+                        {isCharging ? '⚡ ' : ''}{batteryLevel}%
+                      </span>
                     </div>
                   </div>
-                  <p className="text-gray-500 italic">Form will be saved if connection is lost</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-gray-500 italic">Form will be saved if connection is lost</p>
+                    {pendingRequests.length > 0 && (
+                      <div className="flex items-center space-x-2 text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
+                        <Clock className="w-4 h-4 animate-pulse" />
+                        <span className="text-xs font-semibold">
+                          {pendingRequests.length} request{pendingRequests.length > 1 ? 's' : ''} pending
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {pendingRequests.length > 0 && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <Clock className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-orange-900 mb-1">
+                          Pending Requests in Queue
+                        </h4>
+                        <p className="text-sm text-orange-800 mb-2">
+                          {pendingRequests.length} emergency request{pendingRequests.length > 1 ? 's are' : ' is'} waiting to be submitted. 
+                          {networkStrength < 40 ? ' Waiting for better network...' : ' Submitting now...'}
+                        </p>
+                        <button
+                          onClick={processQueuedRequests}
+                          disabled={isProcessingQueue || networkStrength < 20}
+                          className="text-sm bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        >
+                          {isProcessingQueue ? 'Processing...' : 'Retry Now'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <button
                   type="button"
