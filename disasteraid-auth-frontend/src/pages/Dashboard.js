@@ -6,6 +6,7 @@ import API from '../api/axios';
 import { getTrackerStatus } from '../api/tracker';
 import { connectRealtime } from '../api/realtime';
 import TicketSuccessModal from "../components/TicketSuccessModal";
+import TicketStatusView from "../components/TicketStatusView";
 import NGODashboard from "../components/ngo/NGODashboard";
 import AuthorityDashboard from "../components/authority/AuthorityDashboard";
 
@@ -33,6 +34,8 @@ const Dashboard = () => {
   const [sidebarTab, setSidebarTab] = useState('new'); // 'new' | 'active' | 'past'
   const [tickets, setTickets] = useState([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [showTicketStatus, setShowTicketStatus] = useState(false);
   const [newTicketId, setNewTicketId] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isSOS, setIsSOS] = useState(false);
@@ -111,7 +114,7 @@ const Dashboard = () => {
 
   const helpTypes = [
     'Food', 'Water', 'Shelter', 'Medical', 'Rescue', 
-    'Evacuation', 'Supplies', 'Transportation', 'Communication'
+    'Sanitation', 'Baby Supplies', 'Transportation', 'Power/Charging'
   ];
 
   const medicalNeeds = [
@@ -137,6 +140,14 @@ const Dashboard = () => {
     setFormData(prev => ({
       ...prev,
       [field]: Math.max(0, prev[field] + delta)
+    }));
+  };
+
+  const handleNumberInput = (field, value) => {
+    const numValue = parseInt(value) || 0;
+    setFormData(prev => ({
+      ...prev,
+      [field]: Math.max(0, numValue)
     }));
   };
 
@@ -822,7 +833,13 @@ const Dashboard = () => {
                           >
                             −
                           </button>
-                          <span className="text-3xl font-bold w-12 text-center">{formData[field]}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData[field]}
+                            onChange={(e) => handleNumberInput(field, e.target.value)}
+                            className="text-3xl font-bold w-20 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          />
                           <button
                             type="button"
                             onClick={() => handleNumberChange(field, 1)}
@@ -1176,14 +1193,13 @@ const Dashboard = () => {
                         </div>
                         <div className="flex items-center gap-3">
                           <button
-                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded"
+                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                             onClick={() => {
-                              setFormData(prev => ({ ...prev, ticketId: t.ticketId }));
-                              setActiveTab('status');
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                              setSelectedTicket(t);
+                              setShowTicketStatus(true);
                             }}
                           >
-                            View Status
+                            View Details
                           </button>
                           <span className={`px-2 py-1 rounded text-xs ${t.status==='active'?'bg-yellow-100 text-yellow-800':'bg-green-100 text-green-800'}`}>{t.status}</span>
                         </div>
@@ -1202,6 +1218,15 @@ const Dashboard = () => {
         onClose={() => setShowSuccessModal(false)}
       />
     )}
+      {showTicketStatus && selectedTicket && (
+        <TicketStatusView
+          ticket={selectedTicket}
+          onClose={() => {
+            setShowTicketStatus(false);
+            setSelectedTicket(null);
+          }}
+        />
+      )}
     </div>
     
   );
