@@ -11,8 +11,8 @@ const {
 const upload = require('../middleware/uploadMiddleware');
 const { protect } = require('../middleware/authMiddleware');
 
-// Submit Help Request (Public)
-router.post("/", upload.array("files[]", 10), submitHelpRequest);
+// Submit Help Request (Protected - requires authentication)
+router.post("/", protect, upload.array("files[]", 10), submitHelpRequest);
 
 // Get Tickets (Protected for Authority & Citizen Dashboard)
 router.get("/", protect, getTickets);

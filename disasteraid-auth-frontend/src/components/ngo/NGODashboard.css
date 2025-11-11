@@ -17,6 +17,18 @@
   color: #555;
 }
 
+/* Header layout with logout */
+.ngo-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.logout-button {
+  align-self: center;
+}
+
 
 /* ====== Card Style (Matches Citizen UI) ====== */
 .card {

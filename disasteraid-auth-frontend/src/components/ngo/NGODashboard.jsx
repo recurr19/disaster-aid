@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
+import { useNavigate } from 'react-router-dom';
 import { Plus } from "lucide-react";
 import NGOResourceForm from "./NGOResourceForm";
 import MatchedCitizensList from "./MatchedCitizensList";
@@ -7,10 +8,13 @@ import "./NGODashboard.css";
 import { listNGOMatches, acceptAssignment, rejectAssignment } from "../../api/ngo";
 import { updateTicketStatus } from "../../api/tracker";
 import { connectRealtime } from "../../api/realtime";
+import { AuthContext } from '../../context/AuthContext';
 
 export default function NGODashboard() {
   const [activeTab, setActiveTab] = useState("resources");
   const [showResourceForm, setShowResourceForm] = useState(false);
+  const navigate = useNavigate();
+  const { logout, user } = useContext(AuthContext);
 
   const [resources, setResources] = useState([
     {
@@ -162,13 +166,24 @@ export default function NGODashboard() {
     activeAssignments: activeRequests.length,
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <div className="container-main ngo-root">
 
       {/* Header */}
-      <div className="mb-8">
-        <h1>NGO Dashboard</h1>
-        <p>Manage resources, match help requests, track missions.</p>
+      <div className="mb-8 ngo-header">
+        <div>
+          <h1>NGO Dashboard</h1>
+          <p>Manage resources, match help requests, track missions.</p>
+          {user?.name && <p style={{ fontSize: '0.9rem', color: '#666' }}>Logged in as: <strong>{user.name}</strong></p>}
+        </div>
+        <button onClick={handleLogout} className="button-secondary logout-button" aria-label="Logout from NGO dashboard">
+          Logout
+        </button>
       </div>
 
       {/* Stats */}
