@@ -166,6 +166,8 @@ exports.listDispatchers = async (req, res) => {
  */
 exports.assignTicketToDispatcher = async (req, res) => {
   try {
+    console.log('Assign ticket request:', req.body);
+    
     const user = await User.findById(req.user.id);
     if (!user || user.role !== 'ngo') {
       return res.status(403).json({ message: 'Only NGOs can assign dispatchers' });
@@ -173,13 +175,26 @@ exports.assignTicketToDispatcher = async (req, res) => {
 
     const { ticketId, dispatcherId } = req.body;
 
-    const ticket = await Ticket.findById(ticketId);
+    // Validate input
+    if (!ticketId || !dispatcherId) {
+      console.log('Missing ticketId or dispatcherId:', { ticketId, dispatcherId });
+      return res.status(400).json({ message: 'Invalid ticket or dispatcher' });
+    }
+
+    // Find ticket by ticketId string (e.g., "DA-123") or MongoDB _id
+    let ticket = await Ticket.findOne({ ticketId: ticketId });
     if (!ticket) {
+      // Fallback: try finding by MongoDB ObjectId
+      ticket = await Ticket.findById(ticketId);
+    }
+    if (!ticket) {
+      console.log('Ticket not found:', ticketId);
       return res.status(404).json({ message: 'Ticket not found' });
     }
 
     const dispatcher = await Dispatcher.findById(dispatcherId);
     if (!dispatcher) {
+      console.log('Dispatcher not found:', dispatcherId);
       return res.status(404).json({ message: 'Dispatcher not found' });
     }
 
@@ -195,17 +210,33 @@ exports.assignTicketToDispatcher = async (req, res) => {
     ticket.isDispatched = true;
     await ticket.save();
 
-    // Add ticket to dispatcher's assigned list
-    if (!dispatcher.assignedTickets.includes(ticketId)) {
-      dispatcher.assignedTickets.push(ticketId);
+    // Add ticket to dispatcher's assigned list (use MongoDB ObjectId)
+    const ticketObjectId = ticket._id.toString();
+    const assignedTicketIds = dispatcher.assignedTickets.map(id => id.toString());
+    
+    if (!assignedTicketIds.includes(ticketObjectId)) {
+      dispatcher.assignedTickets.push(ticket._id);
       await dispatcher.save();
     }
 
-    res.json({ message: 'Ticket assigned to dispatcher successfully', ticket });
+    console.log('Ticket assigned successfully:', ticket.ticketId, 'to dispatcher:', dispatcher.name);
+    
+    res.json({ 
+      message: 'Ticket assigned to dispatcher successfully', 
+      ticket: {
+        ticketId: ticket.ticketId,
+        dispatchedTo: dispatcher.name,
+        dispatchedAt: ticket.dispatchedAt
+      }
+    });
 
   } catch (err) {
     console.error('ASSIGN TICKET TO DISPATCHER ERROR:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: err.message 
+    });
   }
 };
 

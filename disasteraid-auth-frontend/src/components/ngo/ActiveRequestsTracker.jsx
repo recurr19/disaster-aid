@@ -41,8 +41,9 @@ export default function ActiveRequestsTracker({ requests, onStatusUpdate, onDisp
                           className="button-secondary text-xs flex items-center justify-center gap-1 py-2"
                           onClick={(e) => {
                             e.stopPropagation();
-                            console.log('Dispatching ticket:', r.ticketObjectId, 'to dispatcher:', dispatcher._id);
-                            onDispatch(r.ticketObjectId, dispatcher._id);
+                            console.log(r);
+                            console.log('Dispatching ticket:', r.id, 'to dispatcher:', dispatcher._id);
+                            onDispatch(r.id, dispatcher._id);
                           }}
                         >
                           <Send className="w-3 h-3" />
