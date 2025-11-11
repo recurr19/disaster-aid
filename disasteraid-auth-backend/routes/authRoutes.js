@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { registerUser, loginUser, getProfile } = require('../controllers/authController');
+const { registerUser, loginUser, getProfile, updateProfile } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
 /**
@@ -23,5 +23,12 @@ router.post('/login', loginUser);
  * @header  Authorization: Bearer <token>
  */
 router.get('/profile', protect, getProfile);
+
+/**
+ * @route   PUT /api/auth/profile
+ * @desc    Update user profile (including NGO profile)
+ * @header  Authorization: Bearer <token>
+ */
+router.put('/profile', protect, updateProfile);
 
 module.exports = router;

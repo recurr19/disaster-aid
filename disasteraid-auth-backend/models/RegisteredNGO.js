@@ -27,13 +27,29 @@ const registeredNGOSchema = new mongoose.Schema({
   resources: { type: String },
 
   // Verification / Registration number
-  registrationId: { type: String, unique: true },
+  registrationId: { type: String, unique: true, sparse: true },
 
   // Operational Capacity Fields
   foodCapacity: { type: Number, default: 0 },          // e.g., meals per day
   medicalTeamCount: { type: Number, default: 0 },       // no. of medical teams
-  vehiclesAvailable: { type: Number, default: 0 },      // boats/trucks/ambulances/etc.
+  vehiclesAvailable: { type: Number, default: 0 },      // total vehicles (sum of trucks+boats+ambulances)
+  
+  // Vehicle breakdown
+  trucks: { type: Number, default: 0 },
+  boats: { type: Number, default: 0 },
+  ambulances: { type: Number, default: 0 },
+  
   coverageRadius: { type: Number, default: 5 },         // km radius of service area
+  
+  // Manual address entry
+  manualAddress: { type: String },
+
+  // Dispatcher management
+  dispatcherCount: { type: Number, default: 0 },
+  dispatchers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Dispatcher'
+  }]
 
 }, { timestamps: true });
 

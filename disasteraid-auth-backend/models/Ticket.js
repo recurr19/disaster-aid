@@ -47,6 +47,22 @@ ticketSchema.add({
     ngo: { type: mongoose.Schema.Types.ObjectId, ref: 'RegisteredNGO' },
     assignedAt: Date,
     note: String
+  }],
+  
+  // Dispatcher assignment
+  dispatchedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Dispatcher', required: false },
+  dispatchedAt: { type: Date, required: false },
+  isDispatched: { type: Boolean, default: false },
+  
+  // Delivery proof uploaded by dispatcher
+  deliveryProof: [{
+    filename: String,
+    originalname: String,
+    mimetype: String,
+    path: String,
+    size: Number,
+    uploadedAt: { type: Date, default: Date.now },
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }]
 });
 

@@ -9,6 +9,7 @@ import TicketSuccessModal from "../components/TicketSuccessModal";
 import TicketStatusView from "../components/TicketStatusView";
 import NGODashboard from "../components/ngo/NGODashboard";
 import AuthorityDashboard from "../components/authority/AuthorityDashboard";
+import DispatcherDashboard from "../components/dispatcher/DispatcherDashboard";
 
 // --- Leaflet / Map imports (add these near the top with other imports) ---
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -580,6 +581,10 @@ const Dashboard = () => {
 
   if (user.role === 'authority') {
     return <AuthorityDashboard user={user} onLogout={handleLogout} />;
+  }
+
+  if (user.role === 'dispatcher') {
+    return <DispatcherDashboard user={user} onLogout={handleLogout} />;
   }
 
   return (

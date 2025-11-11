@@ -9,6 +9,7 @@ const http = require('http');
 const Realtime = require('./utils/realtime');
 const ngoRoutes = require('./routes/ngoRoutes');
 const trackerRoutes = require('./routes/trackerRoutes');
+const dispatcherRoutes = require('./routes/dispatcherRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -31,6 +32,7 @@ app.use("/api/tickets", ticketRoutes);
 app.use("/api/authority", authorityRoutes);
 app.use("/api/ngo", ngoRoutes);
 app.use("/api/tracker", trackerRoutes);
+app.use("/api/dispatcher", dispatcherRoutes);
 
 // Default route
 app.get('/', (req, res) => {
