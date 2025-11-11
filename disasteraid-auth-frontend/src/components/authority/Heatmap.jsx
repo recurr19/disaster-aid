@@ -1,13 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './authority.css';
+import API from '../../api/axios';
 
 const Heatmap = ({ points = [] }) => {
   const mapRef = useRef(null);
   const heatRef = useRef(null);
   const [heatAvailable, setHeatAvailable] = useState(false);
+  const [mapData, setMapData] = useState(null);
+  const [layers, setLayers] = useState({
+    shelters: true,
+    medicalCamps: true,
+    depots: true,
+    blockedRoutes: true,
+    advisories: true
+  });
 
   useEffect(() => {
     // Try to dynamically load leaflet.heat if available in node_modules
@@ -30,6 +39,20 @@ const Heatmap = ({ points = [] }) => {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+    async function fetchMap() {
+      try {
+        const res = await API.get('/authority/map', { signal: controller.signal });
+        setMapData(res.data);
+      } catch (e) {
+        // ignore for now
+      }
+    }
+    fetchMap();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
@@ -48,21 +71,41 @@ const Heatmap = ({ points = [] }) => {
   // Default center (India) and zoom
   const center = [22.5937, 78.9629];
 
-  // demo/sample points (centers across India)
-  const samplePoints = [
-    { lat: 28.7041, lng: 77.1025, intensity: 0.8, label: 'Delhi' },
-    { lat: 19.07598, lng: 72.87766, intensity: 0.6, label: 'Mumbai' },
-    { lat: 13.0827, lng: 80.2707, intensity: 0.5, label: 'Chennai' },
-    { lat: 22.5726, lng: 88.3639, intensity: 0.7, label: 'Kolkata' },
-    { lat: 12.9716, lng: 77.5946, intensity: 0.4, label: 'Bengaluru' },
-  ];
+  // derive points from mapData tickets
+  const apiPoints = (mapData?.tickets?.features || []).map(f => {
+    const [lng, lat] = f.geometry.coordinates || [];
+    const props = f.properties || {};
+    return {
+      lat, lng,
+      intensity: props.isSOS ? 1.0 : 0.6,
+      label: `${props.ticketId} — ${props.status}${props.assignedTo?.organizationName ? ' • ' + props.assignedTo.organizationName : ''}`
+    };
+  });
 
-  const displayPoints = (points && points.length) ? points : samplePoints;
+  const displayPoints = (points && points.length) ? points : apiPoints;
 
   return (
     <div className="card">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Service Heatmap</h2>
-      <p className="text-sm text-gray-600 mb-4">Interactive map — heat overlay will appear when points are provided.</p>
+      <h2 className="text-lg font-semibold text-gray-900 mb-2">Service Heatmap</h2>
+      <p className="text-sm text-gray-600 mb-3">Interactive map — live tickets and overlay layers.</p>
+      <div className="flex flex-wrap gap-3 mb-4">
+        {[
+          { key: 'shelters', label: 'Shelters' },
+          { key: 'medicalCamps', label: 'Medical Camps' },
+          { key: 'depots', label: 'Depots' },
+          { key: 'blockedRoutes', label: 'Blocked Routes' },
+          { key: 'advisories', label: 'Advisories' }
+        ].map(opt => (
+          <label key={opt.key} className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={layers[opt.key]}
+              onChange={(e) => setLayers(prev => ({ ...prev, [opt.key]: e.target.checked }))}
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
 
       <div style={{ height: 480, borderRadius: 12, overflow: 'hidden' }}>
         <MapContainer
@@ -75,7 +118,7 @@ const Heatmap = ({ points = [] }) => {
             attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {/* If heat plugin is not present, show simple circle markers as fallback demo */}
+          {/* Tickets as circles if heat plugin is not present */}
           {!heatAvailable && displayPoints.map((p, idx) => (
             <CircleMarker key={idx} center={[p.lat, p.lng]} radius={12} pathOptions={{ color: 'rgba(220,38,38,0.8)', fillColor: 'rgba(220,38,38,0.35)', fillOpacity: 0.6 }}>
               <Popup>
@@ -86,6 +129,104 @@ const Heatmap = ({ points = [] }) => {
               </Popup>
             </CircleMarker>
           ))}
+
+          {/* Overlays rendering */}
+          {mapData?.overlays && (
+            <>
+              {layers.shelters && (mapData.overlays.shelters || []).map(o => {
+                if (o.geometry?.type === 'Point') {
+                  const [lng, lat] = o.geometry.coordinates || [];
+                  return (
+                    <CircleMarker key={o._id} center={[lat, lng]} radius={10} pathOptions={{ color: '#2563eb', fillColor: '#93c5fd', fillOpacity: 0.7 }}>
+                      <Popup>
+                        <div>
+                          <strong>Shelter: {o.name}</strong>
+                          <div>Status: {o.status || '—'}</div>
+                          {'capacity' in o ? <div>Capacity: {o.capacity}</div> : null}
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                }
+                return null;
+              })}
+
+              {layers.medicalCamps && (mapData.overlays.medicalCamps || []).map(o => {
+                if (o.geometry?.type === 'Point') {
+                  const [lng, lat] = o.geometry.coordinates || [];
+                  return (
+                    <CircleMarker key={o._id} center={[lat, lng]} radius={10} pathOptions={{ color: '#16a34a', fillColor: '#86efac', fillOpacity: 0.7 }}>
+                      <Popup>
+                        <div>
+                          <strong>Medical Camp: {o.name}</strong>
+                          <div>Status: {o.status || '—'}</div>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                }
+                return null;
+              })}
+
+              {layers.depots && (mapData.overlays.depots || []).map(o => {
+                if (o.geometry?.type === 'Point') {
+                  const [lng, lat] = o.geometry.coordinates || [];
+                  return (
+                    <CircleMarker key={o._id} center={[lat, lng]} radius={10} pathOptions={{ color: '#7c3aed', fillColor: '#c4b5fd', fillOpacity: 0.7 }}>
+                      <Popup>
+                        <div>
+                          <strong>Depot: {o.name}</strong>
+                          <div>Status: {o.status || '—'}</div>
+                          {'capacity' in o ? <div>Capacity: {o.capacity}</div> : null}
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                }
+                return null;
+              })}
+
+              {layers.blockedRoutes && (mapData.overlays.blockedRoutes || []).map(o => {
+                if (o.geometry?.type === 'LineString') {
+                  const latlngs = (o.geometry.coordinates || []).map(([lng, lat]) => [lat, lng]);
+                  return (
+                    <Polyline key={o._id} positions={latlngs} pathOptions={{ color: '#dc2626', weight: 5, opacity: 0.9 }} />
+                  );
+                }
+                if (o.geometry?.type === 'Point') {
+                  const [lng, lat] = o.geometry.coordinates || [];
+                  return (
+                    <CircleMarker key={o._id} center={[lat, lng]} radius={10} pathOptions={{ color: '#dc2626', fillColor: '#fecaca', fillOpacity: 0.8 }}>
+                      <Popup>
+                        <div>
+                          <strong>Blocked Route: {o.name}</strong>
+                          <div>Status: {o.status || 'blocked'}</div>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                }
+                return null;
+              })}
+
+              {layers.advisories && (mapData.overlays.advisories || []).map(o => {
+                if (o.geometry?.type === 'Point') {
+                  const [lng, lat] = o.geometry.coordinates || [];
+                  return (
+                    <CircleMarker key={o._id} center={[lat, lng]} radius={8} pathOptions={{ color: '#f59e0b', fillColor: '#fde68a', fillOpacity: 0.9 }}>
+                      <Popup>
+                        <div>
+                          <strong>Advisory: {o.name}</strong>
+                          <div>{o.status || 'active'}</div>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                }
+                return null;
+              })}
+            </>
+          )}
         </MapContainer>
       </div>
     </div>

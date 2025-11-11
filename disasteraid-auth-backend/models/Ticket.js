@@ -4,6 +4,9 @@ const ticketSchema = new mongoose.Schema({
   ticketId: { type: String, required: true, unique: true },
   name: String,
   phone: String,
+  language: String,
+  preferredContact: { type: String, enum: ['call', 'sms', 'whatsapp', 'email'], required: false },
+  channel: { type: String, enum: ['web', 'chat', 'sms', 'callcenter', 'bulk'], required: false },
   address: String,
   landmark: String,
   adults: Number,
@@ -13,8 +16,15 @@ const ticketSchema = new mongoose.Schema({
   medicalNeeds: [String],
   description: String,
   isSOS: Boolean,
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false, index: true },
   status: { type: String, default: "active" },
   createdAt: { type: Date, default: Date.now },
+  totalBeneficiaries: { type: Number, default: 0 },
+  priorityScore: { type: Number, default: 0 },
+  triageLevel: { type: String, enum: ['low', 'medium', 'high', 'critical'], default: 'low' },
+  isAnonymous: { type: Boolean, default: false, index: true },
+  clusterId: { type: String, required: false, index: true },
+  possibleDuplicateOf: { type: String, required: false },
   batteryLevel: { type: Number, min: 0, max: 100 },
   networkStrength: { type: Number, min: 0, max: 100 },
   files: [{
@@ -25,6 +35,9 @@ const ticketSchema = new mongoose.Schema({
     size: Number
   }]
 });
+
+// Common query indexes
+ticketSchema.index({ status: 1, createdAt: -1 });
 
 // Assignment metadata
 ticketSchema.add({
@@ -43,18 +56,20 @@ ticketSchema.add({
     type: {
       type: String,
       enum: ['Point'],
-      default: 'Point'
+      required: false
     },
     coordinates: {
       type: [Number], // [lng, lat]
-      index: '2dsphere',
       required: false
     }
   }
 });
 
-// 2dsphere index for geo queries
-ticketSchema.index({ locationGeo: '2dsphere' });
+// 2dsphere index for geo queries (only when coordinates exist)
+ticketSchema.index(
+  { locationGeo: '2dsphere' },
+  { partialFilterExpression: { 'locationGeo.coordinates': { $type: 'array' } } }
+);
 
 const Ticket = mongoose.model("Ticket", ticketSchema);
 

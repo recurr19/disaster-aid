@@ -30,6 +30,9 @@ exports.registerUser = async (req, res) => {
 
     // 2️⃣ If NGO — Create NGO Profile (separate model)
     if (role === 'ngo' && ngoProfile) {
+      const normalizedAreas = Array.isArray(ngoProfile.areasOfWork)
+        ? ngoProfile.areasOfWork.map(h => String(h).toLowerCase().trim())
+        : [];
       await RegisteredNGO.create({
         user: user._id,
         organizationName: ngoProfile.organizationName,
@@ -41,7 +44,7 @@ exports.registerUser = async (req, res) => {
           type: 'Point',
           coordinates: ngoProfile.coordinates
         } : undefined,
-        areasOfWork: Array.isArray(ngoProfile.areasOfWork) ? ngoProfile.areasOfWork : [],
+        areasOfWork: normalizedAreas,
         availability: ngoProfile.availability,
         resources: ngoProfile.resources,
         registrationId: ngoProfile.registrationId,

@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import NGOResourceForm from "./NGOResourceForm";
 import MatchedCitizensList from "./MatchedCitizensList";
 import ActiveRequestsTracker from "./ActiveRequestsTracker";
 import "./NGODashboard.css";
+import { listNGOMatches, acceptAssignment, rejectAssignment } from "../../api/ngo";
+import { updateTicketStatus } from "../../api/tracker";
+import { connectRealtime } from "../../api/realtime";
 
 export default function NGODashboard() {
   const [activeTab, setActiveTab] = useState("resources");
@@ -21,35 +24,79 @@ export default function NGODashboard() {
     },
   ]);
 
-  const [matchedCitizens, setMatchedCitizens] = useState([
-    {
-      id: "1",
-      name: "John Doe",
-      helpType: "Medical",
-      urgency: "SOS",
-      location: "Downtown",
-      peopleCount: 3,
-    },
-    {
-      id: "2",
-      name: "Jane Smith",
-      helpType: "Food",
-      urgency: "Normal",
-      location: "Midtown",
-      peopleCount: 2,
-    }
-  ]);
+  const [matchedCitizens, setMatchedCitizens] = useState([]);
 
-  const [activeRequests, setActiveRequests] = useState([
-    {
-      id: "1",
-      citizenName: "John Doe",
-      helpType: "Medical",
-      location: "Downtown",
-      acceptedAt: "2024-11-06 10:30",
-      status: "dispatched",
-    },
-  ]);
+  const [activeRequests, setActiveRequests] = useState([]);
+
+  // Load matches (proposed) and accepted assignments for the NGO
+  useEffect(() => {
+    async function load() {
+      try {
+        const proposed = await listNGOMatches('proposed');
+        const accepted = await listNGOMatches('accepted');
+
+        const citizens = (proposed.assignments || []).map(a => ({
+          id: a.assignmentId,
+          name: a.ticket?.name || 'Citizen',
+          helpType: (a.ticket?.helpTypes || []).join(', '),
+          urgency: a.isSOS ? 'SOS' : 'Normal',
+          location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
+          peopleCount: (a.ticket?.adults || 0) + (a.ticket?.children || 0) + (a.ticket?.elderly || 0),
+          ticketId: a.ticket?.ticketId
+        }));
+        setMatchedCitizens(citizens);
+
+        const requests = (accepted.assignments || []).map(a => ({
+          id: a.ticket?.ticketId,
+          citizenName: a.ticket?.name || 'Citizen',
+          helpType: (a.ticket?.helpTypes || []).join(', '),
+          location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
+          acceptedAt: new Date(a.createdAt).toLocaleString(),
+          status: 'matched' // actual status comes from tracker; we will update as user changes
+        }));
+        setActiveRequests(requests);
+      } catch (e) {
+        console.error('Failed to load NGO data', e);
+      }
+    }
+    load();
+  }, []);
+
+  // Realtime refresh for NGO matches/accepted
+  useEffect(() => {
+    const s = connectRealtime();
+    const reload = async () => {
+      try {
+        const proposed = await listNGOMatches('proposed');
+        const accepted = await listNGOMatches('accepted');
+        const citizens = (proposed.assignments || []).map(a => ({
+          id: a.assignmentId,
+          name: a.ticket?.name || 'Citizen',
+          helpType: (a.ticket?.helpTypes || []).join(', '),
+          urgency: a.isSOS ? 'SOS' : 'Normal',
+          location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
+          peopleCount: (a.ticket?.adults || 0) + (a.ticket?.children || 0) + (a.ticket?.elderly || 0),
+          ticketId: a.ticket?.ticketId
+        }));
+        setMatchedCitizens(citizens);
+        const requests = (accepted.assignments || []).map(a => ({
+          id: a.ticket?.ticketId,
+          citizenName: a.ticket?.name || 'Citizen',
+          helpType: (a.ticket?.helpTypes || []).join(', '),
+          location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
+          acceptedAt: new Date(a.createdAt).toLocaleString(),
+          status: 'matched'
+        }));
+        setActiveRequests(requests);
+      } catch {}
+    };
+    s.on('assignment:proposed', reload);
+    s.on('assignment:accepted', reload);
+    return () => {
+      s.off('assignment:proposed', reload);
+      s.off('assignment:accepted', reload);
+    };
+  }, []);
 
   const handleAddResource = (resource) => {
     setResources([
@@ -59,35 +106,53 @@ export default function NGODashboard() {
     setShowResourceForm(false);
   };
 
-  const handleAcceptMatch = (citizenId) => {
-    const citizen = matchedCitizens.find((c) => c.id === citizenId);
-    if (!citizen) return;
-
-    setActiveRequests([
-      ...activeRequests,
-      {
-        id: Date.now().toString(),
-        citizenName: citizen.name,
-        helpType: citizen.helpType,
-        location: citizen.location,
-        acceptedAt: new Date().toLocaleString(),
-        status: "pending",
-      },
-    ]);
-
-    setMatchedCitizens(matchedCitizens.filter((c) => c.id !== citizenId));
+  const handleAcceptMatch = async (assignmentId) => {
+    try {
+      const res = await acceptAssignment(assignmentId);
+      // Move from matchedCitizens to activeRequests
+      const citizen = matchedCitizens.find((c) => c.id === assignmentId);
+      if (citizen) {
+        setActiveRequests([
+          ...activeRequests,
+          {
+            id: res.ticketId,
+            citizenName: citizen.name,
+            helpType: citizen.helpType,
+            location: citizen.location,
+            acceptedAt: new Date().toLocaleString(),
+            status: "matched",
+          },
+        ]);
+      }
+      setMatchedCitizens(matchedCitizens.filter((c) => c.id !== assignmentId));
+    } catch (e) {
+      console.error('Accept failed', e);
+      alert('Failed to accept assignment');
+    }
   };
 
-  const handleRejectMatch = (citizenId) => {
-    setMatchedCitizens(matchedCitizens.filter((c) => c.id !== citizenId));
+  const handleRejectMatch = async (assignmentId) => {
+    try {
+      await rejectAssignment(assignmentId);
+      setMatchedCitizens(matchedCitizens.filter((c) => c.id !== assignmentId));
+    } catch (e) {
+      console.error('Reject failed', e);
+      alert(e?.response?.data?.message || 'Failed to reject assignment');
+    }
   };
 
-  const handleStatusUpdate = (requestId, newStatus) => {
-    setActiveRequests(
-      activeRequests.map((req) =>
-        req.id === requestId ? { ...req, status: newStatus } : req
-      )
-    );
+  const handleStatusUpdate = async (ticketId, newStatus) => {
+    try {
+      await updateTicketStatus(ticketId, newStatus);
+      setActiveRequests(
+        activeRequests.map((req) =>
+          req.id === ticketId ? { ...req, status: newStatus } : req
+        )
+      );
+    } catch (e) {
+      console.error('Status update failed', e);
+      alert('Failed to update status');
+    }
   };
 
   const stats = {
@@ -98,53 +163,44 @@ export default function NGODashboard() {
   };
 
   return (
-    <div className="container-main" style={{ padding: "2rem" }}>
+    <div className="container-main ngo-root">
 
       {/* Header */}
-      <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ fontSize: "2.25rem", fontWeight: "700", color: "#111" }}>
-          NGO Dashboard
-        </h1>
-        <p style={{ color: "#555" }}>Manage resources, match help requests, track missions.</p>
+      <div className="mb-8">
+        <h1>NGO Dashboard</h1>
+        <p>Manage resources, match help requests, track missions.</p>
       </div>
 
       {/* Stats */}
-      <div style={{ display: "grid", gap: "1.5rem", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", marginBottom: "2rem" }}>
+      <div className="stats-grid">
         <div className="card">
-          <p style={{ color: "#666", fontSize: "0.9rem" }}>Active Resources</p>
-          <p style={{ fontSize: "2rem", fontWeight: "600" }}>{stats.activeResources}</p>
+          <p>Active Resources</p>
+          <p>{stats.activeResources}</p>
         </div>
 
         <div className="card">
-          <p style={{ color: "#666", fontSize: "0.9rem" }}>Total Capacity</p>
-          <p style={{ fontSize: "2rem", fontWeight: "600" }}>{stats.totalCapacity}</p>
+          <p>Total Capacity</p>
+          <p>{stats.totalCapacity}</p>
         </div>
 
         <div className="card">
-          <p style={{ color: "#666", fontSize: "0.9rem" }}>Pending Matches</p>
-          <p style={{ fontSize: "2rem", fontWeight: "600" }}>{stats.pendingMatches}</p>
+          <p>Pending Matches</p>
+          <p>{stats.pendingMatches}</p>
         </div>
 
         <div className="card">
-          <p style={{ color: "#666", fontSize: "0.9rem" }}>Active Assignments</p>
-          <p style={{ fontSize: "2rem", fontWeight: "600" }}>{stats.activeAssignments}</p>
+          <p>Active Assignments</p>
+          <p>{stats.activeAssignments}</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", borderBottom: "1px solid #ddd", paddingBottom: "0.75rem" }}>
+      <div className="tab-row">
         {["resources", "matches", "tracking"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            style={{
-              fontWeight: activeTab === tab ? "700" : "500",
-              color: activeTab === tab ? "#2563eb" : "#444",
-              borderBottom: activeTab === tab ? "3px solid #2563eb" : "3px solid transparent",
-              padding: "0.5rem 1rem",
-              background: "none",
-              cursor: "pointer"
-            }}
+            className={`tab-button ${activeTab === tab ? 'active' : ''}`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
@@ -165,14 +221,14 @@ export default function NGODashboard() {
             />
           )}
 
-          <div style={{ display: "grid", gap: "1rem" }}>
+          <div className="list-grid">
             {resources.map((r) => (
               <div key={r.id} className="card">
-                <h3 style={{ fontSize: "1.25rem", fontWeight: "600" }}>{r.category}</h3>
-                <p style={{ color: "#555", margin: "0.25rem 0" }}>{r.description}</p>
-                <p style={{ fontSize: "0.9rem" }}>Quantity: {r.quantity}</p>
-                <p style={{ fontSize: "0.9rem" }}>Capacity: {r.peopleCapacity} people</p>
-                <p style={{ fontSize: "0.9rem" }}>Location: {r.location}</p>
+                <h3 className="text-lg font-semibold">{r.category}</h3>
+                <p className="text-gray-700 my-1">{r.description}</p>
+                <p className="text-sm">Quantity: {r.quantity}</p>
+                <p className="text-sm">Capacity: {r.peopleCapacity} people</p>
+                <p className="text-sm">Location: {r.location}</p>
               </div>
             ))}
           </div>

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, Menu, X, PlusCircle, Clock, CheckCircle2, LogOut } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import API from '../api/axios';
+import { getTrackerStatus } from '../api/tracker';
+import { connectRealtime } from '../api/realtime';
 import TicketSuccessModal from "../components/TicketSuccessModal";
 import NGODashboard from "../components/ngo/NGODashboard";
 import AuthorityDashboard from "../components/authority/AuthorityDashboard";
@@ -321,10 +323,53 @@ const Dashboard = () => {
     }
   };
 
-  const handleStatusCheck = () => {
-    console.log('Checking status for:', formData.ticketId);
-    alert('Status check for ticket: ' + formData.ticketId);
+  const [trackerData, setTrackerData] = useState(null);
+  const [trackerLoading, setTrackerLoading] = useState(false);
+  const [trackerError, setTrackerError] = useState('');
+  const [pollId, setPollId] = useState(null);
+
+  const handleStatusCheck = async () => {
+    if (!formData.ticketId) return;
+    try {
+      setTrackerLoading(true);
+      setTrackerError('');
+      const res = await getTrackerStatus(formData.ticketId);
+      setTrackerData(res);
+    } catch (e) {
+      setTrackerData(null);
+      setTrackerError('Ticket not found or server error.');
+    } finally {
+      setTrackerLoading(false);
+    }
   };
+
+  // Auto-refresh tracker every 12s when status tab is active and ticketId present
+  useEffect(() => {
+    if (activeTab !== 'status' || !formData.ticketId) {
+      if (pollId) {
+        clearInterval(pollId);
+        setPollId(null);
+      }
+      return;
+    }
+    const id = setInterval(() => {
+      handleStatusCheck();
+    }, 12000);
+    setPollId(id);
+    return () => clearInterval(id);
+  }, [activeTab, formData.ticketId]); 
+
+  // Realtime updates for current ticket
+  useEffect(() => {
+    if (activeTab !== 'status' || !formData.ticketId) return;
+    const s = connectRealtime();
+    const channel = `ticket:update:${formData.ticketId}`;
+    const handler = () => handleStatusCheck();
+    s.on(channel, handler);
+    return () => {
+      s.off(channel, handler);
+    };
+  }, [activeTab, formData.ticketId]);
 
   const handleLogout = () => {
     logout();
@@ -382,8 +427,7 @@ const Dashboard = () => {
     async function fetchTickets() {
       try {
         setLoadingTickets(true);
-        const status = sidebarTab === 'active' ? 'active' : 'closed';
-        // Exposed API endpoint (backend to be implemented later)
+        const status = sidebarTab === 'active' ? 'active' : 'completed';
         const res = await API.get('/tickets', { params: { status }, signal: controller.signal });
         setTickets(Array.isArray(res.data?.tickets) ? res.data.tickets : []);
       } catch (e) {
@@ -1033,15 +1077,71 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <div className="text-center py-12">
-                  <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-600 text-lg mb-2">
-                    Enter your ticket ID above to check the status of your request
-                  </p>
-                  <p className="text-gray-500">
-                    Your ticket ID was provided when you submitted your request
-                  </p>
-                </div>
+                {!trackerData && !trackerLoading && (
+                  <div className="text-center py-12">
+                    <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-600 text-lg mb-2">
+                      Enter your ticket ID above to check the status of your request
+                    </p>
+                    <p className="text-gray-500">
+                      Your ticket ID was provided when you submitted your request
+                    </p>
+                  </div>
+                )}
+                {trackerLoading && (
+                  <p className="text-gray-500">Loading ticket status...</p>
+                )}
+                {trackerError && (
+                  <p className="text-red-600">{trackerError}</p>
+                )}
+                {trackerData && trackerData.ticket && (
+                  <div className="bg-white rounded-xl shadow p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900">Ticket {trackerData.ticket.ticketId}</h3>
+                        <p className="text-sm text-gray-600">Status: <span className="font-semibold">{trackerData.ticket.status}</span></p>
+                      </div>
+                      {trackerData.ticket.isSOS && (
+                        <span className="px-3 py-1 rounded bg-red-100 text-red-700 text-xs font-semibold">SOS</span>
+                      )}
+                    </div>
+                    {trackerData.ticket.assignedTo ? (
+                      <div className="p-4 rounded border border-green-200 bg-green-50">
+                        <p className="font-semibold text-green-800">Accepted by:</p>
+                        <p className="text-green-900">{trackerData.ticket.assignedTo.organizationName}</p>
+                        <p className="text-sm text-green-900">{trackerData.ticket.assignedTo.phone} • {trackerData.ticket.assignedTo.location}</p>
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded border border-blue-200 bg-blue-50">
+                        <p className="font-semibold text-blue-800">Matched NGOs:</p>
+                        {Array.isArray(trackerData.assignments) && trackerData.assignments.length > 0 ? (
+                          <ul className="list-disc pl-5 text-blue-900">
+                            {trackerData.assignments.map(a => (
+                              <li key={a.assignmentId}>
+                                <span className="font-medium">{a.ngo?.organizationName || 'NGO'}</span>
+                                {' '}- {a.status}{a.etaMinutes ? ` • ETA ~ ${a.etaMinutes} min` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-blue-900">Finding NGOs near you...</p>
+                        )}
+                      </div>
+                    )}
+                    {Array.isArray(trackerData.ticket.assignmentHistory) && trackerData.ticket.assignmentHistory.length > 0 && (
+                      <div>
+                        <p className="font-semibold mb-2">Timeline</p>
+                        <ul className="space-y-2">
+                          {trackerData.ticket.assignmentHistory.map((h, idx) => (
+                            <li key={idx} className="text-sm text-gray-700">
+                              {new Date(h.assignedAt).toLocaleString()} — {h.note || 'Update'}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1074,7 +1174,19 @@ const Dashboard = () => {
                           <p className="font-medium text-gray-900">{t.title || `Ticket ${t.id}`}</p>
                           <p className="text-sm text-gray-500">{t.summary || t.status}</p>
                         </div>
-                        <span className={`px-2 py-1 rounded text-xs ${t.status==='active'?'bg-yellow-100 text-yellow-800':'bg-green-100 text-green-800'}`}>{t.status}</span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, ticketId: t.ticketId }));
+                              setActiveTab('status');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                          >
+                            View Status
+                          </button>
+                          <span className={`px-2 py-1 rounded text-xs ${t.status==='active'?'bg-yellow-100 text-yellow-800':'bg-green-100 text-green-800'}`}>{t.status}</span>
+                        </div>
                       </li>
                     ))}
                   </ul>

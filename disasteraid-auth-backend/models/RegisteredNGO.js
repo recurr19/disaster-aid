@@ -43,17 +43,19 @@ registeredNGOSchema.add({
     type: {
       type: String,
       enum: ['Point'],
-      default: 'Point'
+      required: false
     },
     coordinates: {
       type: [Number], // [lng, lat]
-      index: '2dsphere',
       required: false
     }
   }
 });
 
-// Ensure a 2dsphere index exists for geo queries
-registeredNGOSchema.index({ locationGeo: '2dsphere' });
+// Ensure a 2dsphere index exists for geo queries (only when coordinates exist)
+registeredNGOSchema.index(
+  { locationGeo: '2dsphere' },
+  { partialFilterExpression: { 'locationGeo.coordinates': { $type: 'array' } } }
+);
 
 module.exports = mongoose.model('RegisteredNGO', registeredNGOSchema);
