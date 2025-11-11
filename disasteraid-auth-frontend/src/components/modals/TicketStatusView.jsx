@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, AlertTriangle, Clock, CheckCircle2, User, Phone, MapPin, Users, Package, Heart, FileText, Battery, Wifi, Calendar } from 'lucide-react';
-import { getTrackerStatus } from '../api/tracker';
+import { X, AlertTriangle, Clock, CheckCircle2, User, Phone, MapPin, Users, Package, Heart, FileText, Battery, Wifi, Calendar, Truck, CheckCircle } from 'lucide-react';
+import { getTrackerStatus } from '../../api/tracker';
 
 const TicketStatusView = ({ ticket, onClose }) => {
   const [statusHistory, setStatusHistory] = useState(null);
@@ -308,7 +308,71 @@ const TicketStatusView = ({ ticket, onClose }) => {
           {ticket?.filesCount > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800">
-                📎 <strong>{ticket.filesCount}</strong> file{ticket.filesCount !== 1 ? 's' : ''} attached to this ticket
+                📎 <strong>{ticket.deliveryProofCount || ticket.filesCount}</strong> file{(ticket.deliveryProofCount || ticket.filesCount) !== 1 ? 's' : ''} related to this ticket
+              </p>
+            </div>
+          )}
+
+          {/* NGO Assignment */}
+          {ticket?.assignedTo && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-green-900 mb-3 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" /> Assigned NGO
+              </h3>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-green-700">Organization</p>
+                  <p className="text-sm font-semibold text-green-900">{ticket.assignedTo.name}</p>
+                </div>
+                {ticket.assignedTo.phone && (
+                  <div>
+                    <p className="text-xs text-green-700">Contact</p>
+                    <p className="text-sm font-semibold text-green-900">{ticket.assignedTo.phone}</p>
+                  </div>
+                )}
+                {ticket.assignedTo.location && (
+                  <div>
+                    <p className="text-xs text-green-700">Location</p>
+                    <p className="text-sm font-semibold text-green-900">{ticket.assignedTo.location}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Dispatcher Assignment */}
+          {ticket?.isDispatched && ticket?.dispatchedTo && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                <Truck className="w-4 h-4" /> Dispatched
+              </h3>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-purple-700">Dispatcher ID</p>
+                  <p className="text-sm font-mono font-semibold text-purple-900">{ticket.dispatchedTo.dispatcherId}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-purple-700">Name</p>
+                  <p className="text-sm font-semibold text-purple-900">{ticket.dispatchedTo.name}</p>
+                </div>
+                {ticket.dispatchedAt && (
+                  <div>
+                    <p className="text-xs text-purple-700">Dispatched At</p>
+                    <p className="text-sm font-semibold text-purple-900">{formatDate(ticket.dispatchedAt)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Delivery Proof */}
+          {ticket?.deliveryProofCount > 0 && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" /> Delivery Proof
+              </h3>
+              <p className="text-sm text-emerald-800">
+                ✅ <strong>{ticket.deliveryProofCount}</strong> proof file{ticket.deliveryProofCount !== 1 ? 's' : ''} uploaded by dispatcher
               </p>
             </div>
           )}

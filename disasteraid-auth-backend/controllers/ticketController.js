@@ -206,7 +206,9 @@ const getTickets = async (req, res) => {
 
     const tickets = await Ticket.find(filter)
       .sort({ createdAt: -1 })
-      .select('-files.path')
+      .select('-files.path -deliveryProof.path')
+      .populate('assignedTo', 'organizationName phone location')
+      .populate('dispatchedTo', 'name email dispatcherId')
       .lean();
 
     res.status(200).json({
@@ -231,6 +233,21 @@ const getTickets = async (req, res) => {
         batteryLevel: ticket.batteryLevel,
         networkStrength: ticket.networkStrength,
         filesCount: ticket.files?.length || 0,
+        assignedTo: ticket.assignedTo ? {
+          id: ticket.assignedTo._id,
+          name: ticket.assignedTo.organizationName,
+          phone: ticket.assignedTo.phone,
+          location: ticket.assignedTo.location
+        } : null,
+        isDispatched: ticket.isDispatched || false,
+        dispatchedTo: ticket.dispatchedTo ? {
+          id: ticket.dispatchedTo._id,
+          name: ticket.dispatchedTo.name,
+          email: ticket.dispatchedTo.email,
+          dispatcherId: ticket.dispatchedTo.dispatcherId
+        } : null,
+        dispatchedAt: ticket.dispatchedAt,
+        deliveryProofCount: ticket.deliveryProof?.length || 0,
         title: `${ticket.isSOS ? '🚨 SOS: ' : ''}${ticket.helpTypes?.join(', ') || 'Help Request'}`,
         summary: ticket.description?.substring(0, 100) || 'No description'
       }))

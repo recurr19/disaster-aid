@@ -4,7 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import { Building2, User, Phone, MapPin, Truck, Activity, Settings } from 'lucide-react';
-import DispatcherCredentialsModal from '../components/DispatcherCredentialsModal';
+import DispatcherCredentialsModal from '../components/modals/DispatcherCredentialsModal';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import './Register.css';

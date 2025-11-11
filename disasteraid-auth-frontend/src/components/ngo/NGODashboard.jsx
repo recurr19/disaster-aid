@@ -5,11 +5,12 @@ import NGOResourceForm from "./NGOResourceForm";
 import MatchedCitizensList from "./MatchedCitizensList";
 import ActiveRequestsTracker from "./ActiveRequestsTracker";
 import GenerateDispatchersModal from "./GenerateDispatchersModal";
-import DispatcherCredentialsModal from "../DispatcherCredentialsModal";
+import DispatcherCredentialsModal from "../modals/DispatcherCredentialsModal";
 import "./NGODashboard.css";
 import { listNGOMatches, acceptAssignment, rejectAssignment } from "../../api/ngo";
 import { updateTicketStatus } from "../../api/tracker";
 import { connectRealtime } from "../../api/realtime";
+import { assignTicketToDispatcher, generateDispatchers as generateDispatchersAPI, listDispatchers as listDispatchersAPI } from "../../api/dispatcher";
 import { AuthContext } from '../../context/AuthContext';
 import API from '../../api/axios';
 
@@ -104,9 +105,9 @@ export default function NGODashboard() {
 
         // Fetch dispatchers
         try {
-          const dispatcherRes = await API.get('/dispatcher/list');
-          console.log('Dispatchers loaded:', dispatcherRes.data);
-          setDispatchers(dispatcherRes.data.dispatchers || []);
+          const dispatcherRes = await listDispatchersAPI();
+          console.log('Dispatchers loaded:', dispatcherRes);
+          setDispatchers(dispatcherRes.dispatchers || []);
         } catch (dispErr) {
           console.error('Failed to load dispatchers:', dispErr);
           setDispatchers([]);
@@ -236,10 +237,7 @@ export default function NGODashboard() {
     }
 
     try {
-      await API.post('/dispatcher/assign-ticket', {
-        ticketId: ticketObjectId,
-        dispatcherId: dispatcherId
-      });
+      await assignTicketToDispatcher(ticketObjectId, dispatcherId);
       alert('Ticket dispatched successfully!');
       // Reload data
       window.location.reload();
@@ -251,15 +249,15 @@ export default function NGODashboard() {
 
   const handleGenerateDispatchers = async (count) => {
     try {
-      const res = await API.post('/dispatcher/generate', { count });
-      setDispatchers(res.data.dispatchers || []);
+      const res = await generateDispatchersAPI(count);
+      setDispatchers(res.dispatchers || []);
       
       // Show credentials modal
-      if (res.data.dispatchers && res.data.dispatchers.length > 0) {
-        setGeneratedCredentials(res.data.dispatchers);
+      if (res.dispatchers && res.dispatchers.length > 0) {
+        setGeneratedCredentials(res.dispatchers);
       }
       
-      return res.data;
+      return res;
     } catch (err) {
       console.error('Generate dispatchers failed:', err);
       throw new Error(err.response?.data?.message || 'Failed to generate dispatchers');
