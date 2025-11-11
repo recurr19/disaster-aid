@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, Polyline, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './authority.css';
 import API from '../../api/axios';
 
-const Heatmap = ({ points = [] }) => {
+const Heatmap = ({ points = [], overlays = null }) => {
   const mapRef = useRef(null);
   const heatRef = useRef(null);
   const [heatAvailable, setHeatAvailable] = useState(false);
@@ -38,19 +38,22 @@ const Heatmap = ({ points = [] }) => {
     return () => { cancelled = true; };
   }, []);
 
+  // Fetch map data only if overlays not provided by parent
   useEffect(() => {
+    if (overlays) return; // parent provided overlays
+
     const controller = new AbortController();
     async function fetchMap() {
       try {
         const res = await API.get('/authority/map', { signal: controller.signal });
-        setMapData(res.data);
+        if (res.data && res.data.success) setMapData(res.data);
       } catch (e) {
         // ignore for now
       }
     }
     fetchMap();
     return () => controller.abort();
-  }, []);
+  }, [overlays]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -71,7 +74,7 @@ const Heatmap = ({ points = [] }) => {
   // Default center (India) and zoom
   const center = [22.5937, 78.9629];
 
-  // derive points from mapData tickets
+  // derive points from either passed prop, or mapData tickets
   const apiPoints = (mapData?.tickets?.features || []).map(f => {
     const [lng, lat] = f.geometry.coordinates || [];
     const props = f.properties || {};
@@ -82,7 +85,7 @@ const Heatmap = ({ points = [] }) => {
     };
   });
 
-  const displayPoints = (points && points.length) ? points : apiPoints;
+  const displayPoints = (points && points.length) ? points : (apiPoints.length ? apiPoints : []);
 
   return (
     <div className="card">
@@ -131,9 +134,9 @@ const Heatmap = ({ points = [] }) => {
           ))}
 
           {/* Overlays rendering */}
-          {mapData?.overlays && (
+          {(overlays || mapData?.overlays) && (
             <>
-              {layers.shelters && (mapData.overlays.shelters || []).map(o => {
+              {layers.shelters && ((overlays && overlays.shelters) || mapData.overlays.shelters || []).map(o => {
                 if (o.geometry?.type === 'Point') {
                   const [lng, lat] = o.geometry.coordinates || [];
                   return (
@@ -151,7 +154,7 @@ const Heatmap = ({ points = [] }) => {
                 return null;
               })}
 
-              {layers.medicalCamps && (mapData.overlays.medicalCamps || []).map(o => {
+              {layers.medicalCamps && ((overlays && overlays.medicalCamps) || mapData.overlays.medicalCamps || []).map(o => {
                 if (o.geometry?.type === 'Point') {
                   const [lng, lat] = o.geometry.coordinates || [];
                   return (
@@ -168,7 +171,7 @@ const Heatmap = ({ points = [] }) => {
                 return null;
               })}
 
-              {layers.depots && (mapData.overlays.depots || []).map(o => {
+              {layers.depots && ((overlays && overlays.depots) || mapData.overlays.depots || []).map(o => {
                 if (o.geometry?.type === 'Point') {
                   const [lng, lat] = o.geometry.coordinates || [];
                   return (
@@ -186,11 +189,19 @@ const Heatmap = ({ points = [] }) => {
                 return null;
               })}
 
-              {layers.blockedRoutes && (mapData.overlays.blockedRoutes || []).map(o => {
+              {layers.blockedRoutes && ((overlays && overlays.blockedRoutes) || mapData.overlays.blockedRoutes || []).map(o => {
                 if (o.geometry?.type === 'LineString') {
                   const latlngs = (o.geometry.coordinates || []).map(([lng, lat]) => [lat, lng]);
                   return (
                     <Polyline key={o._id} positions={latlngs} pathOptions={{ color: '#dc2626', weight: 5, opacity: 0.9 }} />
+                  );
+                }
+                if (o.geometry?.type === 'Polygon') {
+                  // geometry.coordinates is [ [ [lng,lat], ... ] ]
+                  const ring = (o.geometry.coordinates && o.geometry.coordinates[0]) || [];
+                  const latlngs = ring.map(([lng, lat]) => [lat, lng]);
+                  return (
+                    <Polygon key={o._id} pathOptions={{ color: '#dc2626', fillOpacity: 0.15 }} positions={latlngs} />
                   );
                 }
                 if (o.geometry?.type === 'Point') {
@@ -209,7 +220,7 @@ const Heatmap = ({ points = [] }) => {
                 return null;
               })}
 
-              {layers.advisories && (mapData.overlays.advisories || []).map(o => {
+              {layers.advisories && ((overlays && overlays.advisories) || mapData.overlays.advisories || []).map(o => {
                 if (o.geometry?.type === 'Point') {
                   const [lng, lat] = o.geometry.coordinates || [];
                   return (

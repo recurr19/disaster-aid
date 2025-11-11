@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Activity, Users, Building2, TrendingUp, FileText, LogOut } from 'lucide-react';
 import CrisisOverview from './CrisisOverview';
 import SOSQueue from './SOSQueue';
-import AssignmentBoard from './AssignmentBoard';
+import AssignmentBoard from './AssignmentsList';
 import ShelterManagement from './ShelterManagement';
 import ResourceAllocation from './ResourceAllocation';
 import AutomatedBriefs from './AutomatedBriefs';
 import Heatmap from './Heatmap';
 import './authority.css';
+import API from '../../api/axios';
 
 const TABS = [
   { id: 'overview', label: 'Crisis Overview', icon: Activity },
@@ -23,6 +24,50 @@ const AuthorityDashboard = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [criticalAlertsCount, setCriticalAlertsCount] = useState(0);
   const [sosCount, setSOSCount] = useState(0);
+  const [mapData, setMapData] = useState(null);
+  const [heatPoints, setHeatPoints] = useState([]);
+  const [loadingMap, setLoadingMap] = useState(false);
+
+  // Fetch map data from backend (tickets + overlays)
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        setLoadingMap(true);
+        const res = await API.get('/authority/map');
+        if (!mounted) return;
+        if (res.data && res.data.success) {
+          const ticketsFC = res.data.tickets || { type: 'FeatureCollection', features: [] };
+          const overlays = res.data.overlays || {};
+          setMapData({ tickets: ticketsFC, overlays });
+
+          // convert features to heat points
+          const points = (ticketsFC.features || []).map(f => {
+            const coords = f.geometry && f.geometry.coordinates;
+            if (!coords || coords.length < 2) return null;
+            const lng = coords[0];
+            const lat = coords[1];
+            const intensity = f.properties && f.properties.isSOS ? 0.95 : 0.4;
+            return { lat, lng, intensity, props: f.properties };
+          }).filter(Boolean);
+          setHeatPoints(points);
+
+          // update counts
+          const sosCountLocal = (ticketsFC.features || []).filter(f => f.properties && f.properties.isSOS).length;
+          setSOSCount(sosCountLocal);
+          const criticalCount = (ticketsFC.features || []).filter(f => f.properties && f.properties.status === 'critical').length;
+          setCriticalAlertsCount(criticalCount);
+        }
+      } catch (e) {
+        console.error('Failed to load authority map:', e);
+      } finally {
+        if (mounted) setLoadingMap(false);
+      }
+    };
+
+    load();
+    return () => { mounted = false; };
+  }, []);
 
   // No DB fetch for now. Use static/demo values to mimic prototype counts.
   useEffect(() => {
@@ -91,13 +136,42 @@ const AuthorityDashboard = ({ user, onLogout }) => {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'overview' && <CrisisOverview />}
-        {activeTab === 'sos' && <SOSQueue />}
-        {activeTab === 'assignments' && <AssignmentBoard />}
-        {activeTab === 'shelters' && <ShelterManagement />}
+        {activeTab === 'overview' && <CrisisOverview mapData={mapData} loading={loadingMap} />}
+        {activeTab === 'sos' && <SOSQueue tickets={(mapData && mapData.tickets) ? mapData.tickets : null} />}
+        {activeTab === 'assignments' && <AssignmentBoard onAssigned={() => {
+          // refresh map data after an assignment is made
+          (async () => {
+            try {
+              const res = await API.get('/authority/map');
+              if (res.data && res.data.success) {
+                const ticketsFC = res.data.tickets || { type: 'FeatureCollection', features: [] };
+                const overlays = res.data.overlays || {};
+                setMapData({ tickets: ticketsFC, overlays });
+
+                const points = (ticketsFC.features || []).map(f => {
+                  const coords = f.geometry && f.geometry.coordinates;
+                  if (!coords || coords.length < 2) return null;
+                  const lng = coords[0];
+                  const lat = coords[1];
+                  const intensity = f.properties && f.properties.isSOS ? 0.95 : 0.4;
+                  return { lat, lng, intensity, props: f.properties };
+                }).filter(Boolean);
+                setHeatPoints(points);
+
+                const sosCountLocal = (ticketsFC.features || []).filter(f => f.properties && f.properties.isSOS).length;
+                setSOSCount(sosCountLocal);
+                const criticalCount = (ticketsFC.features || []).filter(f => f.properties && f.properties.status === 'critical').length;
+                setCriticalAlertsCount(criticalCount);
+              }
+            } catch (e) {
+              console.error('Failed to refresh authority map after assignment:', e);
+            }
+          })();
+        }} />}
+        {activeTab === 'shelters' && <ShelterManagement overlays={(mapData && mapData.overlays) ? mapData.overlays : null} />}
         {activeTab === 'resources' && <ResourceAllocation />}
-  {activeTab === 'heatmap' && <Heatmap />}
-        {activeTab === 'briefs' && <AutomatedBriefs />}
+        {activeTab === 'heatmap' && <Heatmap points={heatPoints} overlays={(mapData && mapData.overlays) ? mapData.overlays : null} />}
+        {activeTab === 'briefs' && <AutomatedBriefs mapData={mapData} />}
       </main>
     </div>
   );
