@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AlertTriangle, Activity, Users, Building2, TrendingUp, FileText } from 'lucide-react';
 import CrisisOverview from './CrisisOverview';
 import SOSQueue from './SOSQueue';
@@ -28,35 +28,35 @@ const AuthorityDashboard = ({ user, onLogout }) => {
   const [heatPoints, setHeatPoints] = useState([]);
   const [loadingMap, setLoadingMap] = useState(false);
 
+  // Function to refresh map data (tickets + overlays)
+  const refreshMapData = useCallback(async () => {
+    try {
+      setLoadingMap(true);
+      const res = await API.get('/authority/map');
+      if (res.data?.success) {
+        const ticketsFC = res.data.tickets || { type: 'FeatureCollection', features: [] };
+        const overlays = res.data.overlays || {};
+        setMapData({ tickets: ticketsFC, overlays });
+        const points = (ticketsFC.features || []).map(f => {
+          const coords = f.geometry?.coordinates;
+          if (!coords || coords.length < 2) return null;
+          const [lng, lat] = coords;
+          return { lat, lng, intensity: f.properties?.isSOS ? 0.95 : 0.4, props: f.properties };
+        }).filter(Boolean);
+        setHeatPoints(points);
+        setSOSCount((ticketsFC.features || []).filter(f => f.properties?.isSOS).length);
+      }
+    } catch (e) {
+      console.error('AuthorityDashboard: map load failed', e);
+    } finally {
+      setLoadingMap(false);
+    }
+  }, []);
+
   // Fetch map data from backend (tickets + overlays)
   useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        setLoadingMap(true);
-        const res = await API.get('/authority/map');
-        if (!active) return;
-        if (res.data?.success) {
-          const ticketsFC = res.data.tickets || { type: 'FeatureCollection', features: [] };
-          const overlays = res.data.overlays || {};
-          setMapData({ tickets: ticketsFC, overlays });
-          const points = (ticketsFC.features || []).map(f => {
-            const coords = f.geometry?.coordinates;
-            if (!coords || coords.length < 2) return null;
-            const [lng, lat] = coords;
-            return { lat, lng, intensity: f.properties?.isSOS ? 0.95 : 0.4, props: f.properties };
-          }).filter(Boolean);
-          setHeatPoints(points);
-          setSOSCount((ticketsFC.features || []).filter(f => f.properties?.isSOS).length);
-        }
-      } catch (e) {
-        console.error('AuthorityDashboard: map load failed', e);
-      } finally {
-        active && setLoadingMap(false);
-      }
-    })();
-    return () => { active = false; };
-  }, []);
+    refreshMapData();
+  }, [refreshMapData]);
 
   // No DB fetch for now. Use static/demo values to mimic prototype counts.
   useEffect(() => {
@@ -148,7 +148,7 @@ const AuthorityDashboard = ({ user, onLogout }) => {
             }
           })();
         }} />}
-        {activeTab === 'shelters' && <ShelterManagement overlays={(mapData && mapData.overlays) ? mapData.overlays : null} />}
+        {activeTab === 'shelters' && <ShelterManagement overlays={(mapData && mapData.overlays) ? mapData.overlays : null} onOverlayChange={refreshMapData} />}
         {activeTab === 'resources' && <ResourceAllocation />}
         {activeTab === 'heatmap' && <Heatmap points={heatPoints} overlays={(mapData && mapData.overlays) ? mapData.overlays : null} />}
         {activeTab === 'briefs' && <AutomatedBriefs mapData={mapData} />}
