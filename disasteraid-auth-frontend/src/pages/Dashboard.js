@@ -1,6 +1,6 @@
 import { useContext, useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, Menu, X, PlusCircle, Clock, CheckCircle2, LogOut } from 'lucide-react';
+import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, X, PlusCircle, Clock, CheckCircle2 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import API from '../api/axios';
 import { getTrackerStatus } from '../api/tracker';
@@ -10,6 +10,7 @@ import TicketStatusView from "../components/modals/TicketStatusView";
 import NGODashboard from "../components/ngo/NGODashboard";
 import AuthorityDashboard from "../components/authority/AuthorityDashboard";
 import DispatcherDashboard from "../components/dispatcher/DispatcherDashboard";
+import AppHeader from "../components/common/AppHeader";
 
 // --- Leaflet / Map imports (add these near the top with other imports) ---
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -41,7 +42,7 @@ const Dashboard = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isSOS, setIsSOS] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  // removed legacy mobile menu state after header refactor
   const [locating, setLocating] = useState(false);
   const [coords, setCoords] = useState({ lat: null, lng: null });
   const [networkStrength, setNetworkStrength] = useState(100); // 0-100
@@ -588,74 +589,105 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-rose-50">
-      <div className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="bg-red-600 p-2 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">DisasterAid</h1>
-              <p className="text-sm text-gray-500">Crisis Relief Platform</p>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-rose-50/30">
+      <AppHeader
+        subtitle="Crisis Relief Platform"
+        onLogout={handleLogout}
+        rightSlot={(
+          <div className={`flex items-center space-x-2 px-3 py-1 rounded-full border ${
+            isOffline ? 'text-red-700 bg-red-50 border-red-100' : 'text-green-700 bg-green-50 border-green-100'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${isOffline ? 'bg-red-600' : 'bg-green-600'} animate-pulse`}></div>
+            <span className="text-xs font-semibold">{isOffline ? 'OFFLINE' : 'ONLINE'}</span>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className={`flex items-center space-x-2 ${isOffline ? 'text-red-600' : 'text-green-600'}`}>
-              <div className={`w-2 h-2 rounded-full ${isOffline ? 'bg-red-600' : 'bg-green-600'}`}></div>
-              <span className="text-sm font-medium">{isOffline ? 'Offline' : 'Online'}</span>
-            </div>
-            <button 
-              onClick={handleLogout}
-              className="flex items-center space-x-2 px-3 py-2 text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Logout"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="text-sm font-medium hidden sm:inline">Logout</span>
-            </button>
-            <button className="lg:hidden" onClick={() => setMenuOpen(!menuOpen)}>
-              {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-        </div>
-      </div>
+        )}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Citizen sidebar + content layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <aside className="lg:col-span-3">
-            <div className="bg-white rounded-xl shadow p-4 sticky top-24">
-              <p className="text-sm text-gray-500 mb-3">Your Tickets</p>
+            <div className="bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/70 rounded-2xl shadow-lg border border-white/60 p-5 sticky top-24">
+              <p className="text-sm font-semibold text-gray-700 mb-4 tracking-wide uppercase">Your Tickets</p>
               <nav className="space-y-2">
-                <button onClick={() => setSidebarTab('new')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${sidebarTab==='new'?'bg-red-50 text-red-700':'hover:bg-gray-50'}`}>
-                  <PlusCircle className="w-5 h-5" /> New Request
+                <button 
+                  onClick={() => setSidebarTab('new')} 
+                  className={`group w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-medium transition-all ${
+                    sidebarTab==='new'
+                      ?'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-lg shadow-rose-500/30'
+                      :'text-gray-700 hover:bg-rose-50 hover:text-rose-700'
+                  }`}
+                >
+                  <PlusCircle className="w-5 h-5" /> 
+                  <span>New Request</span>
                 </button>
-                <button onClick={() => setSidebarTab('active')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${sidebarTab==='active'?'bg-red-50 text-red-700':'hover:bg-gray-50'}`}>
-                  <Clock className="w-5 h-5" /> Active Tickets
+                <button 
+                  onClick={() => setSidebarTab('active')} 
+                  className={`group w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-medium transition-all ${
+                    sidebarTab==='active'
+                      ?'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
+                      :'text-gray-700 hover:bg-blue-50 hover:text-blue-700'
+                  }`}
+                >
+                  <Clock className="w-5 h-5" /> 
+                  <span>Active Tickets</span>
                 </button>
-                <button onClick={() => setSidebarTab('past')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left ${sidebarTab==='past'?'bg-red-50 text-red-700':'hover:bg-gray-50'}`}>
-                  <CheckCircle2 className="w-5 h-5" /> Past Tickets
+                <button 
+                  onClick={() => setSidebarTab('past')} 
+                  className={`group w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-medium transition-all ${
+                    sidebarTab==='past'
+                      ?'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                      :'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
+                  }`}
+                >
+                  <CheckCircle2 className="w-5 h-5" /> 
+                  <span>Past Tickets</span>
                 </button>
-                {/* Check Status is already present in main tabs */}
               </nav>
             </div>
           </aside>
 
-          <section className="lg:col-span-9">
+          <main className="lg:col-span-9">
             {sidebarTab === 'new' && (
               <>
+                {/* Offline Queue Alert */}
+                {isOffline && pendingRequests.length > 0 && (
+                  <div className="glass-card border-l-4 border-yellow-500 bg-gradient-to-r from-yellow-50/80 to-amber-50/80 backdrop-blur supports-[backdrop-filter]:bg-yellow-50/60 p-5 rounded-2xl shadow-lg mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-yellow-100 rounded-xl">
+                        <AlertTriangle className="w-6 h-6 text-yellow-700" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-yellow-900">Offline Queue</h4>
+                        <p className="text-sm text-yellow-800">
+                          You have <strong>{pendingRequests.length}</strong> ticket(s) pending. They will be submitted once connectivity returns.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hero Header */}
                 <div className="text-center mb-8">
-                  <AlertTriangle className="w-16 h-16 text-red-600 mx-auto mb-4" />
-                  <h2 className="text-4xl font-bold text-gray-900 mb-2">Emergency Assistance</h2>
+                  <div className="inline-flex p-4 bg-gradient-to-br from-rose-500/10 to-red-500/10 rounded-2xl mb-4">
+                    <AlertTriangle className="w-14 h-14 text-rose-600" />
+                  </div>
+                  <h2 className="text-4xl font-bold bg-gradient-to-r from-rose-600 to-red-600 bg-clip-text text-transparent mb-2">
+                    Emergency Assistance
+                  </h2>
                   <p className="text-lg text-gray-600">Report your situation and get connected with relief teams</p>
                 </div>
 
-                <div className="bg-red-50 border-l-4 border-red-600 p-6 rounded-lg mb-8">
-                  <div className="flex items-start space-x-3">
-                    <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
+                {/* Emergency Alert Box */}
+                <div className="glass-card border-l-4 border-rose-500 bg-gradient-to-r from-rose-50/80 to-red-50/80 backdrop-blur supports-[backdrop-filter]:bg-rose-50/60 p-6 rounded-2xl shadow-lg mb-8 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-rose-500/5 to-red-500/5"></div>
+                  <div className="relative flex items-start gap-4">
+                    <div className="p-3 bg-rose-100 rounded-2xl flex-shrink-0 animate-pulse-glow">
+                      <AlertTriangle className="w-6 h-6 text-rose-600" />
+                    </div>
                     <div>
-                      <h3 className="font-bold text-red-900 text-lg mb-1">Life-Threatening Emergency?</h3>
-                      <p className="text-red-800">
+                      <h3 className="font-bold text-rose-900 text-lg mb-1">Life-Threatening Emergency?</h3>
+                      <p className="text-rose-800 text-sm">
                         If you're in immediate danger, call local emergency services first (112, 100, 108). 
                         Then use this form to coordinate relief efforts.
                       </p>
@@ -663,15 +695,16 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                  <div className="border-b border-gray-200">
+                {/* Main Card with Tabs */}
+                <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 overflow-hidden">
+                  <div className="border-b border-gray-100">
                     <div className="flex">
                       <button
                         onClick={() => setActiveTab('request')}
-                        className={`flex-1 px-6 py-4 text-center font-semibold border-b-2 transition-colors ${
+                        className={`group flex-1 px-6 py-4 text-center font-semibold border-b-2 transition-all ${
                           activeTab === 'request'
-                            ? 'border-red-600 text-red-600 bg-red-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            ? 'border-rose-600 text-rose-600 bg-gradient-to-t from-rose-50/50 to-transparent'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
                         }`}
                       >
                         <FileText className="w-5 h-5 inline mr-2" />
@@ -679,10 +712,10 @@ const Dashboard = () => {
                       </button>
                       <button
                         onClick={() => setActiveTab('status')}
-                        className={`flex-1 px-6 py-4 text-center font-semibold border-b-2 transition-colors ${
+                        className={`group flex-1 px-6 py-4 text-center font-semibold border-b-2 transition-all ${
                           activeTab === 'status'
-                            ? 'border-red-600 text-red-600 bg-red-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            ? 'border-blue-600 text-blue-600 bg-gradient-to-t from-blue-50/50 to-transparent'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
                         }`}
                       >
                         <Search className="w-5 h-5 inline mr-2" />
@@ -694,48 +727,52 @@ const Dashboard = () => {
           <div className="p-6 sm:p-8">
             {activeTab === 'request' ? (
               <div className="space-y-8">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <label className="flex items-start space-x-3 cursor-pointer">
+                {/* SOS Checkbox */}
+                <div className="glass-card border-l-4 border-rose-500 bg-gradient-to-r from-rose-50/60 to-red-50/60 backdrop-blur supports-[backdrop-filter]:bg-rose-50/40 rounded-xl p-5">
+                  <label className="flex items-start space-x-3 cursor-pointer group">
                     <input
                       type="checkbox"
                       checked={isSOS}
                       onChange={(e) => setIsSOS(e.target.checked)}
-                      className="mt-1 w-5 h-5 text-red-600 rounded focus:ring-red-500"
+                      className="mt-1 w-5 h-5 text-rose-600 rounded-lg focus:ring-rose-500 focus:ring-offset-2 transition-all"
                     />
-                    <div>
+                    <div className="flex-1">
                       <div className="flex items-center space-x-2">
-                        <AlertTriangle className="w-5 h-5 text-red-600" />
-                        <span className="font-bold text-red-900 text-lg">
+                        <AlertTriangle className="w-5 h-5 text-rose-600 group-hover:animate-pulse" />
+                        <span className="font-bold text-rose-900 text-lg">
                           This is a life-threatening emergency (SOS)
                         </span>
                       </div>
-                      <p className="text-red-700 text-sm mt-1">
+                      <p className="text-rose-700 text-sm mt-1">
                         Check this if you or others are in immediate danger and need urgent assistance
                       </p>
                     </div>
                   </label>
                 </div>
 
-                <div>
-                  <div className="flex items-center space-x-2 mb-4">
-                    <Phone className="w-5 h-5 text-gray-700" />
+                {/* Contact Information */}
+                <div className="glass-card bg-white/50 backdrop-blur supports-[backdrop-filter]:bg-white/40 rounded-xl p-6 border border-white/60">
+                  <div className="flex items-center space-x-2 mb-5">
+                    <div className="p-2 bg-gradient-to-br from-blue-500/10 to-blue-600/10 rounded-xl">
+                      <Phone className="w-5 h-5 text-blue-600" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900">Contact Information</h3>
                   </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Your Name</label>
                       <input
                         type="text"
                         name="name"
                         value={formData.name}
                         onChange={handleInputChange}
                         placeholder="Your full name"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        className="w-full px-4 py-3 bg-white/80 backdrop-blur border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm hover:shadow-md"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Phone Number <span className="text-red-600">*</span>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Phone Number <span className="text-rose-600">*</span>
                       </label>
                       <input
                         type="tel"
@@ -743,33 +780,48 @@ const Dashboard = () => {
                         value={formData.phone}
                         onChange={handleInputChange}
                         placeholder="+91 98765 43210"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        className="w-full px-4 py-3 bg-white/80 backdrop-blur border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm hover:shadow-md"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center space-x-2 mb-4">
-                    <MapPin className="w-5 h-5 text-gray-700" />
+                {/* Location */}
+                <div className="glass-card bg-white/50 backdrop-blur supports-[backdrop-filter]:bg-white/40 rounded-xl p-6 border border-white/60">
+                  <div className="flex items-center space-x-2 mb-5">
+                    <div className="p-2 bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 rounded-xl">
+                      <MapPin className="w-5 h-5 text-emerald-600" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900">Location</h3>
                   </div>
                   <button
                     type="button"
                     onClick={handleUseCurrentLocation}
                     disabled={locating}
-                    className={`mb-4 px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 ${locating ? 'bg-gray-400 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                    className={`mb-4 px-6 py-3 rounded-xl font-semibold transition-all flex items-center space-x-2 shadow-lg ${
+                      locating 
+                        ? 'bg-gray-400 text-white cursor-not-allowed' 
+                        : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 hover:shadow-xl hover:scale-105'
+                    }`}
                   >
                     <MapPin className="w-5 h-5" />
                     <span>{locating ? 'Locating...' : 'Use Current Location'}</span>
                   </button>
                   {coords.lat != null && coords.lng != null && (
-                    <div className="mt-2 text-sm text-gray-700">
-                      <div>Latitude: {coords.lat.toFixed(6)}</div>
-                      <div>Longitude: {coords.lng.toFixed(6)}</div>
+                    <div className="mt-3">
+                      <div className="flex items-center gap-4 mb-3 text-sm font-medium text-gray-700">
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500">Latitude:</span>
+                          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-mono">{coords.lat.toFixed(6)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500">Longitude:</span>
+                          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-mono">{coords.lng.toFixed(6)}</span>
+                        </div>
+                      </div>
 
                       {/* Map */}
-                      <div className="mt-4 rounded-lg overflow-hidden border">
+                      <div className="mt-4 rounded-xl overflow-hidden border border-gray-200 shadow-lg">
                         <MapContainer
                           center={[coords.lat, coords.lng]}
                           zoom={15}
@@ -791,35 +843,38 @@ const Dashboard = () => {
                     </div>
                   )}
 
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid md:grid-cols-2 gap-4 mt-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Address/Area</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Address/Area</label>
                       <input
                         type="text"
                         name="address"
                         value={formData.address}
                         onChange={handleInputChange}
                         placeholder="Building, street, area"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        className="w-full px-4 py-3 bg-white/80 backdrop-blur border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all shadow-sm hover:shadow-md"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Landmark</label>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Landmark</label>
                       <input
                         type="text"
                         name="landmark"
                         value={formData.landmark}
                         onChange={handleInputChange}
                         placeholder="Near school, hospital, etc."
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        className="w-full px-4 py-3 bg-white/80 backdrop-blur border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all shadow-sm hover:shadow-md"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center space-x-2 mb-4">
-                    <Users className="w-5 h-5 text-gray-700" />
+                {/* Number of People */}
+                <div className="glass-card bg-white/50 backdrop-blur supports-[backdrop-filter]:bg-white/40 rounded-xl p-6 border border-white/60">
+                  <div className="flex items-center space-x-2 mb-5">
+                    <div className="p-2 bg-gradient-to-br from-purple-500/10 to-purple-600/10 rounded-xl">
+                      <Users className="w-5 h-5 text-purple-600" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900">Number of People</h3>
                   </div>
                   <div className="grid md:grid-cols-3 gap-6">
@@ -829,12 +884,12 @@ const Dashboard = () => {
                       { field: 'elderly', label: 'Elderly' }
                     ].map(({ field, label }) => (
                       <div key={field} className="text-center">
-                        <p className="font-medium text-gray-700 mb-3">{label}</p>
-                        <div className="flex items-center justify-center space-x-4">
+                        <p className="font-semibold text-gray-700 mb-3">{label}</p>
+                        <div className="flex items-center justify-center space-x-3">
                           <button
                             type="button"
                             onClick={() => handleNumberChange(field, -1)}
-                            className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-xl font-bold"
+                            className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border border-purple-200 flex items-center justify-center text-xl font-bold text-purple-700 transition-all hover:scale-110 active:scale-95 shadow-md hover:shadow-lg"
                           >
                             −
                           </button>
@@ -843,12 +898,12 @@ const Dashboard = () => {
                             min="0"
                             value={formData[field]}
                             onChange={(e) => handleNumberInput(field, e.target.value)}
-                            className="text-3xl font-bold w-20 text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                            className="text-3xl font-bold w-20 text-center bg-white/80 backdrop-blur border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent shadow-sm"
                           />
                           <button
                             type="button"
                             onClick={() => handleNumberChange(field, 1)}
-                            className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-xl font-bold"
+                            className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border border-purple-200 flex items-center justify-center text-xl font-bold text-purple-700 transition-all hover:scale-110 active:scale-95 shadow-md hover:shadow-lg"
                           >
                             +
                           </button>
@@ -858,47 +913,50 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Type of Help Needed</h3>
+                {/* Type of Help */}
+                <div className="glass-card bg-white/50 backdrop-blur supports-[backdrop-filter]:bg-white/40 rounded-xl p-6 border border-white/60">
+                  <h3 className="text-xl font-bold text-gray-900 mb-5">Type of Help Needed</h3>
                   <div className="grid md:grid-cols-3 gap-3">
                     {helpTypes.map(type => (
                       <label
                         key={type}
-                        className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                        className="group flex items-center space-x-3 p-4 bg-white/80 backdrop-blur border-2 border-gray-200 rounded-xl cursor-pointer hover:border-rose-400 hover:bg-rose-50/50 transition-all has-[:checked]:border-rose-500 has-[:checked]:bg-gradient-to-br has-[:checked]:from-rose-50 has-[:checked]:to-red-50 has-[:checked]:shadow-lg"
                       >
                         <input
                           type="checkbox"
                           checked={formData.helpTypes.includes(type)}
                           onChange={() => handleCheckbox('helpTypes', type)}
-                          className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
+                          className="w-5 h-5 text-rose-600 rounded-lg focus:ring-rose-500 focus:ring-offset-2 transition-all"
                         />
-                        <span className="font-medium text-gray-700">{type}</span>
+                        <span className="font-medium text-gray-700 group-has-[:checked]:text-rose-900 group-has-[:checked]:font-semibold">{type}</span>
                       </label>
                     ))}
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Special Medical/Care Needs</h3>
+                {/* Medical Needs */}
+                <div className="glass-card bg-white/50 backdrop-blur supports-[backdrop-filter]:bg-white/40 rounded-xl p-6 border border-white/60">
+                  <h3 className="text-xl font-bold text-gray-900 mb-5">Special Medical/Care Needs</h3>
                   <div className="grid md:grid-cols-3 gap-3">
                     {medicalNeeds.map(need => (
                       <label
                         key={need}
-                        className="flex items-center space-x-3 p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                        className="group flex items-center space-x-3 p-4 bg-white/80 backdrop-blur border-2 border-gray-200 rounded-xl cursor-pointer hover:border-red-400 hover:bg-red-50/50 transition-all has-[:checked]:border-red-500 has-[:checked]:bg-gradient-to-br has-[:checked]:from-red-50 has-[:checked]:to-rose-50 has-[:checked]:shadow-lg"
                       >
                         <input
                           type="checkbox"
                           checked={formData.medicalNeeds.includes(need)}
                           onChange={() => handleCheckbox('medicalNeeds', need)}
-                          className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
+                          className="w-5 h-5 text-red-600 rounded-lg focus:ring-red-500 focus:ring-offset-2 transition-all"
                         />
-                        <span className="font-medium text-gray-700">{need}</span>
+                        <span className="font-medium text-gray-700 group-has-[:checked]:text-red-900 group-has-[:checked]:font-semibold">{need}</span>
                       </label>
                     ))}
                   </div>
                 </div>
 
-                <div>
+                {/* Description */}
+                <div className="glass-card bg-white/50 backdrop-blur supports-[backdrop-filter]:bg-white/40 rounded-xl p-6 border border-white/60">
                   <h3 className="text-xl font-bold text-gray-900 mb-4">Description</h3>
                   <textarea
                     name="description"
@@ -906,19 +964,22 @@ const Dashboard = () => {
                     onChange={handleInputChange}
                     placeholder="Describe your situation, any injuries, immediate dangers, or other important details..."
                     rows="5"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-transparent resize-none transition-all shadow-sm hover:shadow-md"
                   />
                 </div>
 
-                <div>
+                {/* File Upload */}
+                <div className="glass-card bg-white/50 backdrop-blur supports-[backdrop-filter]:bg-white/40 rounded-xl p-6 border border-white/60">
                   <div className="flex items-center space-x-2 mb-4">
-                    <Camera className="w-5 h-5 text-gray-700" />
+                    <div className="p-2 bg-gradient-to-br from-indigo-500/10 to-indigo-600/10 rounded-xl">
+                      <Camera className="w-5 h-5 text-indigo-600" />
+                    </div>
                     <h3 className="text-xl font-bold text-gray-900">Photos/Evidence (Optional)</h3>
                   </div>
                   
                   <div className="space-y-4">
                     <label 
-                      className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer block relative"
+                      className="group border-2 border-dashed border-gray-300 hover:border-indigo-400 rounded-xl p-8 text-center transition-all cursor-pointer block relative bg-gradient-to-br from-indigo-50/20 to-purple-50/20 hover:from-indigo-50/40 hover:to-purple-50/40"
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault();
@@ -933,8 +994,10 @@ const Dashboard = () => {
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         disabled={uploading}
                       />
-                      <Camera className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-600 font-medium mb-1">
+                      <div className="p-3 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl inline-block mb-3">
+                        <Camera className="w-10 h-10 text-indigo-600" />
+                      </div>
+                      <p className="text-gray-700 font-semibold mb-1">
                         {uploading ? 'Uploading...' : 'Click or drag files here'}
                       </p>
                       <p className="text-gray-500 text-sm">
@@ -944,7 +1007,9 @@ const Dashboard = () => {
                     </label>
 
                     {uploadError && (
-                      <div className="text-red-600 text-sm text-center">{uploadError}</div>
+                      <div className="glass-card border-l-4 border-red-500 bg-red-50/80 backdrop-blur p-3 rounded-xl">
+                        <p className="text-red-700 text-sm font-medium">{uploadError}</p>
+                      </div>
                     )}
 
                     {files.length > 0 && (
@@ -952,7 +1017,7 @@ const Dashboard = () => {
                         {files.map((file, index) => (
                           <div key={index} className="relative group">
                             {isImage(file) ? (
-                              <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                              <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 border-2 border-gray-200 shadow-md group-hover:shadow-xl transition-all">
                                 <img
                                   src={URL.createObjectURL(file)}
                                   alt={`Upload preview ${index + 1}`}
@@ -960,18 +1025,18 @@ const Dashboard = () => {
                                 />
                               </div>
                             ) : isAudio(file) && (
-                              <div className="aspect-square rounded-lg bg-gray-100 flex items-center justify-center p-4">
+                              <div className="aspect-square rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 border-2 border-purple-200 flex items-center justify-center p-4 shadow-md group-hover:shadow-xl transition-all">
                                 <div className="text-center">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mx-auto text-gray-400 mb-2" viewBox="0 0 20 20" fill="currentColor">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mx-auto text-indigo-600 mb-2" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                                   </svg>
-                                  <p className="text-xs text-gray-500 truncate">{file.name}</p>
+                                  <p className="text-xs text-indigo-700 font-medium truncate">{file.name}</p>
                                 </div>
                               </div>
                             )}
                             <button
                               onClick={() => removeFile(index)}
-                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:scale-110"
                               type="button"
                             >
                               <X className="w-4 h-4" />
@@ -983,81 +1048,92 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-4">
-                    {/* Network Signal Indicator */}
-                    <div className={`flex items-center space-x-2 ${
-                      networkStrength === 0 ? 'text-red-600' : 
-                      networkStrength < 40 ? 'text-red-500' : 
-                      networkStrength < 70 ? 'text-yellow-500' : 
-                      'text-green-600'
-                    }`}>
-                      <div className="flex items-center space-x-0.5">
-                        {/* Signal bars */}
-                        <div className={`w-1 h-2 rounded-sm ${networkStrength > 0 ? 'bg-current' : 'bg-gray-300'}`}></div>
-                        <div className={`w-1 h-3 rounded-sm ${networkStrength > 25 ? 'bg-current' : 'bg-gray-300'}`}></div>
-                        <div className={`w-1 h-4 rounded-sm ${networkStrength > 50 ? 'bg-current' : 'bg-gray-300'}`}></div>
-                        <div className={`w-1 h-5 rounded-sm ${networkStrength > 75 ? 'bg-current' : 'bg-gray-300'}`}></div>
-                      </div>
-                      <span className="font-medium">
-                        {networkStrength === 0 ? 'No Signal' : 
-                         networkStrength < 40 ? 'Weak Signal' : 
-                         networkStrength < 70 ? 'Fair Signal' : 
-                         'Strong Signal'}
-                      </span>
-                    </div>
-
-                    {/* Battery Level Indicator */}
-                    <div className={`flex items-center space-x-2 ${
-                      batteryLevel < 20 ? 'text-red-600' : 
-                      batteryLevel < 50 ? 'text-yellow-500' : 
-                      'text-green-600'
-                    }`}>
-                      <div className="relative w-6 h-3 border-2 border-current rounded-sm">
-                        <div className="absolute top-0 right-0 -mr-1 h-full w-0.5 bg-current rounded-r-sm"></div>
-                        <div 
-                          className={`h-full ${
-                            batteryLevel < 20 ? 'bg-red-600' : 
-                            batteryLevel < 50 ? 'bg-yellow-500' : 
-                            'bg-green-600'
-                          } transition-all duration-300`}
-                          style={{ width: `${batteryLevel}%` }}
-                        ></div>
-                      </div>
-                      <span className="font-medium">
-                        {isCharging ? '⚡ ' : ''}{batteryLevel}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-gray-500 italic">Form will be saved if connection is lost</p>
-                    {pendingRequests.length > 0 && (
-                      <div className="flex items-center space-x-2 text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
-                        <Clock className="w-4 h-4 animate-pulse" />
-                        <span className="text-xs font-semibold">
-                          {pendingRequests.length} request{pendingRequests.length > 1 ? 's' : ''} pending
+                {/* Network and Battery Indicators */}
+                <div className="glass-card bg-gradient-to-br from-gray-50/80 to-slate-50/80 backdrop-blur supports-[backdrop-filter]:bg-gray-50/60 rounded-xl p-5 border border-gray-200">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex items-center space-x-6">
+                      {/* Network Signal */}
+                      <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
+                        networkStrength === 0 ? 'bg-red-100 text-red-700' : 
+                        networkStrength < 40 ? 'bg-orange-100 text-orange-700' : 
+                        networkStrength < 70 ? 'bg-yellow-100 text-yellow-700' : 
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        <div className="flex items-center space-x-0.5">
+                          <div className={`w-1 h-2 rounded-sm ${networkStrength > 0 ? 'bg-current' : 'bg-gray-400'}`}></div>
+                          <div className={`w-1 h-3 rounded-sm ${networkStrength > 25 ? 'bg-current' : 'bg-gray-400'}`}></div>
+                          <div className={`w-1 h-4 rounded-sm ${networkStrength > 50 ? 'bg-current' : 'bg-gray-400'}`}></div>
+                          <div className={`w-1 h-5 rounded-sm ${networkStrength > 75 ? 'bg-current' : 'bg-gray-400'}`}></div>
+                        </div>
+                        <span className="font-semibold text-sm">
+                          {networkStrength === 0 ? 'No Signal' : 
+                           networkStrength < 40 ? 'Weak' : 
+                           networkStrength < 70 ? 'Fair' : 
+                           'Strong'}
                         </span>
                       </div>
-                    )}
+
+                      {/* Battery Level */}
+                      <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
+                        batteryLevel < 20 ? 'bg-red-100 text-red-700' : 
+                        batteryLevel < 50 ? 'bg-yellow-100 text-yellow-700' : 
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        <div className="relative w-6 h-3 border-2 border-current rounded-sm">
+                          <div className="absolute top-0 right-0 -mr-1 h-full w-0.5 bg-current rounded-r-sm"></div>
+                          <div 
+                            className={`h-full rounded-l-sm ${
+                              batteryLevel < 20 ? 'bg-red-600' : 
+                              batteryLevel < 50 ? 'bg-yellow-600' : 
+                              'bg-green-600'
+                            } transition-all duration-300`}
+                            style={{ width: `${batteryLevel}%` }}
+                          ></div>
+                        </div>
+                        <span className="font-semibold text-sm">
+                          {isCharging ? '⚡ ' : ''}{batteryLevel}%
+                        </span>
+                      </div>
+
+                      {/* Pending Queue Badge */}
+                      {pendingRequests.length > 0 && (
+                        <div className="flex items-center space-x-2 bg-orange-100 text-orange-700 px-3 py-2 rounded-lg">
+                          <Clock className="w-4 h-4 animate-pulse" />
+                          <span className="text-sm font-semibold">
+                            {pendingRequests.length} pending
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <p className="text-gray-600 text-sm italic flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                      Form saved if connection lost
+                    </p>
                   </div>
                 </div>
 
+                {/* Pending Queue Alert */}
                 {pendingRequests.length > 0 && (
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                    <div className="flex items-start space-x-3">
-                      <Clock className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                  <div className="glass-card border-l-4 border-orange-500 bg-gradient-to-r from-orange-50/80 to-yellow-50/80 backdrop-blur supports-[backdrop-filter]:bg-orange-50/60 rounded-xl p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-orange-100 rounded-xl flex-shrink-0">
+                        <Clock className="w-5 h-5 text-orange-600 animate-pulse" />
+                      </div>
                       <div className="flex-1">
-                        <h4 className="font-semibold text-orange-900 mb-1">
+                        <h4 className="font-bold text-orange-900 mb-1">
                           Pending Requests in Queue
                         </h4>
-                        <p className="text-sm text-orange-800 mb-2">
+                        <p className="text-sm text-orange-800 mb-3">
                           {pendingRequests.length} emergency request{pendingRequests.length > 1 ? 's are' : ' is'} waiting to be submitted. 
                           {networkStrength < 40 ? ' Waiting for better network...' : ' Submitting now...'}
                         </p>
                         <button
                           onClick={processQueuedRequests}
                           disabled={isProcessingQueue || networkStrength < 20}
-                          className="text-sm bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                          className="text-sm bg-gradient-to-r from-orange-600 to-orange-700 text-white px-5 py-2 rounded-xl font-semibold hover:from-orange-700 hover:to-orange-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
                         >
                           {isProcessingQueue ? 'Processing...' : 'Retry Now'}
                         </button>
@@ -1066,18 +1142,23 @@ const Dashboard = () => {
                   </div>
                 )}
 
+                {/* Submit Button */}
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
+                  className="group w-full bg-gradient-to-r from-rose-600 via-red-600 to-rose-600 text-white py-5 px-8 rounded-2xl text-lg font-bold hover:from-rose-700 hover:via-red-700 hover:to-rose-700 transition-all shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] relative overflow-hidden"
                 >
-                  Submit Request for Help
+                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></span>
+                  <span className="relative flex items-center justify-center gap-2">
+                    <AlertTriangle className="w-6 h-6" />
+                    Submit Emergency Request
+                  </span>
                 </button>
               </div>
             ) : (
               <div className="space-y-6">
                 <div>
-                  <label className="block text-lg font-semibold text-gray-900 mb-3">
+                  <label className="block text-lg font-bold text-gray-900 mb-3">
                     Enter your ticket ID to check status
                   </label>
                   <div className="flex gap-3">
@@ -1087,11 +1168,11 @@ const Dashboard = () => {
                       value={formData.ticketId}
                       onChange={handleInputChange}
                       placeholder="DA-1234567890"
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-lg"
+                      className="flex-1 px-5 py-4 bg-white/80 backdrop-blur border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-medium shadow-sm hover:shadow-md transition-all"
                     />
                     <button
                       onClick={handleStatusCheck}
-                      className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                      className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-4 rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 transition-all flex items-center space-x-2 shadow-lg hover:shadow-xl hover:scale-105"
                     >
                       <Search className="w-5 h-5" />
                       <span>Search</span>
@@ -1100,9 +1181,11 @@ const Dashboard = () => {
                 </div>
 
                 {!trackerData && !trackerLoading && (
-                  <div className="text-center py-12">
-                    <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-600 text-lg mb-2">
+                  <div className="text-center py-16 glass-card bg-gradient-to-br from-blue-50/30 to-indigo-50/30 backdrop-blur rounded-2xl">
+                    <div className="p-4 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl inline-block mb-4">
+                      <Search className="w-12 h-12 text-blue-600" />
+                    </div>
+                    <p className="text-gray-700 text-lg font-medium mb-2">
                       Enter your ticket ID above to check the status of your request
                     </p>
                     <p className="text-gray-500">
@@ -1111,37 +1194,48 @@ const Dashboard = () => {
                   </div>
                 )}
                 {trackerLoading && (
-                  <p className="text-gray-500">Loading ticket status...</p>
+                  <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600 mb-4"></div>
+                    <p className="text-gray-600 font-medium">Loading ticket status...</p>
+                  </div>
                 )}
                 {trackerError && (
-                  <p className="text-red-600">{trackerError}</p>
+                  <div className="glass-card border-l-4 border-red-500 bg-red-50/80 backdrop-blur supports-[backdrop-filter]:bg-red-50/60 p-5 rounded-xl">
+                    <p className="text-red-700 font-medium">{trackerError}</p>
+                  </div>
                 )}
                 {trackerData && trackerData.ticket && (
-                  <div className="bg-white rounded-xl shadow p-6 space-y-4">
+                  <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 p-6 space-y-5">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-xl font-bold text-gray-900">Ticket {trackerData.ticket.ticketId}</h3>
-                        <p className="text-sm text-gray-600">Status: <span className="font-semibold">{trackerData.ticket.status}</span></p>
+                        <h3 className="text-2xl font-bold text-gray-900">Ticket {trackerData.ticket.ticketId}</h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Status: <span className="font-bold text-blue-600">{trackerData.ticket.status}</span>
+                        </p>
                       </div>
                       {trackerData.ticket.isSOS && (
-                        <span className="px-3 py-1 rounded bg-red-100 text-red-700 text-xs font-semibold">SOS</span>
+                        <span className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-100 to-rose-100 border border-red-200 text-red-700 text-sm font-bold shadow-md">
+                          🚨 SOS
+                        </span>
                       )}
                     </div>
                     {trackerData.ticket.assignedTo ? (
-                      <div className="p-4 rounded border border-green-200 bg-green-50">
-                        <p className="font-semibold text-green-800">Accepted by:</p>
-                        <p className="text-green-900">{trackerData.ticket.assignedTo.organizationName}</p>
-                        <p className="text-sm text-green-900">{trackerData.ticket.assignedTo.phone} • {trackerData.ticket.assignedTo.location}</p>
+                      <div className="glass-card border-l-4 border-green-500 bg-gradient-to-r from-green-50/80 to-emerald-50/80 backdrop-blur supports-[backdrop-filter]:bg-green-50/60 p-5 rounded-xl">
+                        <p className="font-bold text-green-900 mb-2">✓ Accepted by:</p>
+                        <p className="text-green-900 font-semibold text-lg">{trackerData.ticket.assignedTo.organizationName}</p>
+                        <p className="text-sm text-green-800 mt-1">{trackerData.ticket.assignedTo.phone} • {trackerData.ticket.assignedTo.location}</p>
                       </div>
                     ) : (
-                      <div className="p-4 rounded border border-blue-200 bg-blue-50">
-                        <p className="font-semibold text-blue-800">Matched NGOs:</p>
+                      <div className="glass-card border-l-4 border-blue-500 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur supports-[backdrop-filter]:bg-blue-50/60 p-5 rounded-xl">
+                        <p className="font-bold text-blue-900 mb-3">Matched NGOs:</p>
                         {Array.isArray(trackerData.assignments) && trackerData.assignments.length > 0 ? (
-                          <ul className="list-disc pl-5 text-blue-900">
+                          <ul className="space-y-2">
                             {trackerData.assignments.map(a => (
-                              <li key={a.assignmentId}>
-                                <span className="font-medium">{a.ngo?.organizationName || 'NGO'}</span>
-                                {' '}- {a.status}{a.etaMinutes ? ` • ETA ~ ${a.etaMinutes} min` : ''}
+                              <li key={a.assignmentId} className="flex items-center gap-2 text-blue-900">
+                                <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                                <span className="font-semibold">{a.ngo?.organizationName || 'NGO'}</span>
+                                <span className="text-blue-700">— {a.status}</span>
+                                {a.etaMinutes && <span className="text-blue-700">• ETA ~ {a.etaMinutes} min</span>}
                               </li>
                             ))}
                           </ul>
@@ -1151,12 +1245,16 @@ const Dashboard = () => {
                       </div>
                     )}
                     {Array.isArray(trackerData.ticket.assignmentHistory) && trackerData.ticket.assignmentHistory.length > 0 && (
-                      <div>
-                        <p className="font-semibold mb-2">Timeline</p>
-                        <ul className="space-y-2">
+                      <div className="glass-card bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50 p-5 rounded-xl border border-gray-200">
+                        <p className="font-bold text-gray-900 mb-3">Timeline</p>
+                        <ul className="space-y-3">
                           {trackerData.ticket.assignmentHistory.map((h, idx) => (
-                            <li key={idx} className="text-sm text-gray-700">
-                              {new Date(h.assignedAt).toLocaleString()} — {h.note || 'Update'}
+                            <li key={idx} className="flex items-start gap-3">
+                              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+                              <div className="text-sm text-gray-700">
+                                <span className="font-medium text-gray-900">{new Date(h.assignedAt).toLocaleString()}</span>
+                                <span className="text-gray-600"> — {h.note || 'Update'}</span>
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -1169,44 +1267,62 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="text-center mt-8 text-gray-500 text-sm">
-          <p>Emergency Response System</p>
+        <div className="text-center mt-8">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur rounded-full border border-gray-200 shadow-sm">
+            <div className="w-2 h-2 bg-gradient-to-r from-rose-500 to-red-500 rounded-full animate-pulse"></div>
+            <p className="text-gray-600 text-sm font-medium">Emergency Response System</p>
+          </div>
                 </div>
               </>
             )}
 
-            {/* No separate status section; use the top tabs */}
-
+            {/* Active and Past Tickets */}
             {(sidebarTab === 'active' || sidebarTab === 'past') && (
-              <div className="bg-white rounded-xl shadow p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-gray-900">
-                    {sidebarTab === 'active' ? 'Active Tickets' : 'Past Tickets'}
+              <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    {sidebarTab === 'active' ? '🔄 Active Tickets' : '✓ Past Tickets'}
                   </h3>
                 </div>
                 {loadingTickets ? (
-                  <p className="text-gray-500">Loading tickets...</p>
+                  <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600 mb-4"></div>
+                    <p className="text-gray-600 font-medium">Loading tickets...</p>
+                  </div>
                 ) : tickets.length === 0 ? (
-                  <p className="text-gray-500">No tickets found.</p>
+                  <div className="text-center py-16 glass-card bg-gradient-to-br from-gray-50/30 to-slate-50/30 backdrop-blur rounded-xl">
+                    <div className="p-4 bg-gradient-to-br from-gray-100 to-slate-100 rounded-2xl inline-block mb-4">
+                      <FileText className="w-12 h-12 text-gray-400" />
+                    </div>
+                    <p className="text-gray-600 font-medium">No {sidebarTab} tickets found.</p>
+                  </div>
                 ) : (
-                  <ul className="divide-y divide-gray-200">
+                  <ul className="space-y-3">
                     {tickets.map((t) => (
-                      <li key={t.id} className="py-3 flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900">{t.title || `Ticket ${t.id}`}</p>
-                          <p className="text-sm text-gray-500">{t.summary || t.status}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <button
-                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                            onClick={() => {
-                              setSelectedTicket(t);
-                              setShowTicketStatus(true);
-                            }}
-                          >
-                            View Details
-                          </button>
-                          <span className={`px-2 py-1 rounded text-xs ${t.status==='active'?'bg-yellow-100 text-yellow-800':'bg-green-100 text-green-800'}`}>{t.status}</span>
+                      <li key={t.id} className="glass-card bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50 rounded-xl p-5 border border-white/60 hover:shadow-lg transition-all">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="font-bold text-gray-900 text-lg mb-1">{t.title || `Ticket ${t.id}`}</p>
+                            <p className="text-sm text-gray-600">{t.summary || t.status}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button
+                              className="px-5 py-2 text-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl"
+                              onClick={() => {
+                                setSelectedTicket(t);
+                                setShowTicketStatus(true);
+                              }}
+                            >
+                              View Details
+                            </button>
+                            <span className={`px-3 py-1 rounded-lg text-xs font-bold shadow-sm ${
+                              t.status==='active'
+                                ?'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800 border border-yellow-200'
+                                :'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200'
+                            }`}>
+                              {t.status}
+                            </span>
+                          </div>
                         </div>
                       </li>
                     ))}
@@ -1214,7 +1330,7 @@ const Dashboard = () => {
                 )}
               </div>
             )}
-          </section>
+          </main>
         </div>
       </div>
       {showSuccessModal && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Activity, Users, Building2, TrendingUp, FileText, LogOut } from 'lucide-react';
+import { AlertTriangle, Activity, Users, Building2, TrendingUp, FileText } from 'lucide-react';
 import CrisisOverview from './CrisisOverview';
 import SOSQueue from './SOSQueue';
 import AssignmentBoard from './AssignmentsList';
@@ -8,6 +8,7 @@ import ResourceAllocation from './ResourceAllocation';
 import AutomatedBriefs from './AutomatedBriefs';
 import Heatmap from './Heatmap';
 import './authority.css';
+import AppHeader from '../common/AppHeader';
 import API from '../../api/axios';
 
 const TABS = [
@@ -67,35 +68,20 @@ const AuthorityDashboard = ({ user, onLogout }) => {
   };
 
   return (
-    <div className="container-main">
-      <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="bg-red-600 p-2 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">DisasterAid</h1>
-              <p className="text-sm text-gray-500">Crisis Relief Platform</p>
-            </div>
+    <div className="container-main authority-dashboard-root">
+      <AppHeader
+        title={"Authority Command"}
+        subtitle={"Real-time coordination & oversight"}
+        onLogout={handleLogout}
+        rightSlot={(
+          <div className="flex items-center space-x-2 text-green-600 px-3 py-1 rounded-full bg-green-50 border border-green-100">
+            <div className="w-2 h-2 rounded-full bg-green-600 animate-pulse" />
+            <span className="text-xs font-semibold tracking-wide">ONLINE</span>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-green-600">
-              <div className="w-2 h-2 rounded-full bg-green-600"></div>
-              <span className="text-sm font-medium">Online</span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center space-x-2 px-3 py-2 text-gray-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="text-sm font-medium hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </div>
-      </header>
+        )}
+      />
 
-      <nav className="nav-bar">
+      <nav className="nav-bar bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/50 border-b border-white/40 shadow-sm">
         <div className="nav-inner">
           <div className="tabs-scroll">
             {TABS.map((tab) => {
@@ -106,7 +92,7 @@ const AuthorityDashboard = ({ user, onLogout }) => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`nav-button ${isActive ? 'active' : ''}`}
+                  className={`nav-button ${isActive ? 'active' : ''} relative group`}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
@@ -115,6 +101,7 @@ const AuthorityDashboard = ({ user, onLogout }) => {
                       {badge}
                     </span>
                   )}
+                  <span className="absolute inset-0 rounded-lg ring-2 ring-rose-500/0 group-hover:ring-rose-500/40 transition" />
                 </button>
               );
             })}
@@ -122,7 +109,15 @@ const AuthorityDashboard = ({ user, onLogout }) => {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Context bar */}
+        <div className="flex flex-wrap gap-3 items-center text-sm">
+          <div className="px-3 py-1 rounded-full bg-rose-50 text-rose-700 font-medium shadow-sm">SOS: {sosCount}</div>
+          <div className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 font-medium shadow-sm">Tickets: {heatPoints.length}</div>
+          {mapData?.overlays && (
+            <div className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium shadow-sm">Overlays: {Object.keys(mapData.overlays).length}</div>
+          )}
+        </div>
         {activeTab === 'overview' && <CrisisOverview mapData={mapData} loading={loadingMap} />}
         {activeTab === 'sos' && <SOSQueue tickets={(mapData && mapData.tickets) ? mapData.tickets : null} />}
         {activeTab === 'assignments' && <AssignmentBoard onAssigned={() => {

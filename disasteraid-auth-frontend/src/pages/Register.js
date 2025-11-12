@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useRef } from 'react';
+import { useState, useContext, useRef } from 'react';
 import API from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,8 @@ import DispatcherCredentialsModal from '../components/modals/DispatcherCredentia
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import './Register.css';
+import { AnimatedBackground } from '../components/common/AnimatedBackground';
+import { Logo } from '../components/common/Logo';
 
 // Fix Leaflet default marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -152,86 +154,51 @@ const Register = () => {
     }
   };
 
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let animationId;
-
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    function resize() {
-      canvas.width = Math.floor(window.innerWidth * dpr);
-      canvas.height = Math.floor(window.innerHeight * dpr);
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    const POINTS = 60;
-    const MAX_SPEED = 0.22;
-    const CONNECT_DIST = 170 * dpr;
-    const nodes = Array.from({ length: POINTS }).map(() => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() * 2 - 1) * MAX_SPEED * dpr,
-      vy: (Math.random() * 2 - 1) * MAX_SPEED * dpr,
-      r: (2 + Math.random() * 2) * dpr
-    }));
-
-    function step() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.lineWidth = 1 * dpr;
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i];
-        for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < CONNECT_DIST) {
-            const alpha = 1 - dist / CONNECT_DIST;
-            ctx.strokeStyle = `rgba(220,38,38,${0.06 + alpha * 0.12})`;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-      }
-
-      for (const p of nodes) {
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
-        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
-        ctx.fillStyle = 'rgba(220,38,38,0.5)';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      animationId = requestAnimationFrame(step);
-    }
-    animationId = requestAnimationFrame(step);
-
-    return () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener('resize', resize);
-    };
-  }, []);
+  // Removed legacy canvas network effect in favor of AnimatedBackground
 
   return (
-    <div className="page-bg">
-      <canvas ref={canvasRef} className="network-canvas" />
-      <div className="gov-form-container">
-        <h2>Register</h2>
-        <form onSubmit={handleSubmit}>
-        <select name="role" value={form.role} onChange={handleChange}>
-          <option value="citizen">Citizen</option>
-          <option value="ngo">NGO / Volunteer</option>
-          <option value="authority">Authority</option>
-        </select>
+    <div className="relative min-h-screen flex flex-col">
+  {/* Animated ambient background */
+  }
+  <AnimatedBackground variant="mesh" />
+      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 pt-10 pb-16">
+        <div className="flex flex-col items-center mb-8 text-center">
+          <Logo size={56} />
+          <h1 className="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-rose-600 via-red-600 to-orange-500 bg-clip-text text-transparent drop-shadow-sm">
+            Create Your Account
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm sm:text-base text-gray-600">
+            Join the unified disaster response network. Select your role and provide the required details. NGO registration supports operational capacity & dispatcher provisioning.
+          </p>
+        </div>
+        <form onSubmit={handleSubmit} className="bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 shadow-xl rounded-2xl p-6 sm:p-10 border border-white/60 space-y-8">
+          {/* Role Selector */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Account Type</label>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { value: 'citizen', label: 'Citizen' },
+                { value: 'ngo', label: 'NGO / Volunteer' },
+                { value: 'authority', label: 'Authority' }
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setForm({ ...form, role: opt.value })}
+                  className={`group relative px-4 py-3 rounded-xl border text-sm font-medium flex flex-col items-center justify-center transition ${
+                    form.role === opt.value
+                      ? 'border-rose-500 bg-rose-50 text-rose-700 shadow-inner'
+                      : 'border-gray-200 hover:border-rose-300 hover:bg-rose-50/40'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {form.role === opt.value && (
+                    <span className="absolute -top-2 -right-2 w-6 h-6 bg-rose-600 text-white text-xs font-bold rounded-full flex items-center justify-center shadow">✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
 
         {form.role === 'citizen' && (
           <>
@@ -241,6 +208,7 @@ const Register = () => {
               value={form.name}
               onChange={handleChange}
               required
+              className="w-full mt-4 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
             />
             <input
               name="email"
@@ -249,6 +217,7 @@ const Register = () => {
               value={form.email}
               onChange={handleChange}
               required
+              className="w-full mt-3 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
             />
             <input
               name="password"
@@ -257,6 +226,7 @@ const Register = () => {
               value={form.password}
               onChange={handleChange}
               required
+              className="w-full mt-3 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
             />
           </>
         )}
@@ -264,7 +234,7 @@ const Register = () => {
         {form.role === 'ngo' && (
           <>
             {/* Organization Details Section */}
-            <div style={{ marginBottom: '2rem' }}>
+            <div style={{ marginBottom: '2rem' }} className="mt-2">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                 <Building2 className="w-5 h-5 text-gray-700" />
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#111827', margin: 0 }}>Organization Details</h3>
@@ -727,6 +697,7 @@ const Register = () => {
               value={form.name}
               onChange={handleChange}
               required
+              className="w-full mt-4 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
             />
             <input
               name="email"
@@ -735,6 +706,7 @@ const Register = () => {
               value={form.email}
               onChange={handleChange}
               required
+              className="w-full mt-3 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
             />
             <input
               name="password"
@@ -743,12 +715,20 @@ const Register = () => {
               value={form.password}
               onChange={handleChange}
               required
+              className="w-full mt-3 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
             />
           </>
         )}
-
-          <button type="submit">Register</button>
+          <div className="pt-2">
+            <button
+              type="submit"
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-rose-600 via-red-600 to-orange-500 text-white font-semibold shadow-lg shadow-rose-500/30 hover:shadow-rose-600/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-600 transition text-sm tracking-wide"
+            >
+              <span>Register</span>
+            </button>
+          </div>
         </form>
+        <p className="mt-6 text-center text-xs text-gray-500">By registering you agree to our disaster response coordination guidelines.</p>
       </div>
 
       {/* Dispatcher Credentials Modal */}

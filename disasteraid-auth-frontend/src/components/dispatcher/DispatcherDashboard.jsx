@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Package, Upload, CheckCircle, Clock, MapPin, Users, FileText } from 'lucide-react';
 import API from '../../api/axios';
+import AppHeader from '../common/AppHeader';
 
 const DispatcherDashboard = () => {
   const [tickets, setTickets] = useState([]);
@@ -70,142 +71,142 @@ const DispatcherDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
       {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Dispatcher Dashboard</h1>
-              <p className="mt-1 text-sm text-gray-600">View and manage your assigned deliveries</p>
-            </div>
-            <div className="flex items-center space-x-2 px-4 py-2 bg-blue-50 rounded-lg">
-              <Package className="w-5 h-5 text-blue-600" />
-              <span className="font-semibold text-blue-900">{tickets.length} Assigned Tickets</span>
-            </div>
+      <AppHeader
+        title="Dispatcher Dashboard"
+        subtitle="View and manage your assigned deliveries"
+        rightSlot={(
+          <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-lg border border-blue-100">
+            <Package className="w-4 h-4 text-blue-600" />
+            <span className="font-semibold text-blue-900 text-sm">{tickets.length} Assigned</span>
           </div>
-        </div>
-      </div>
+        )}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {tickets.length === 0 ? (
-          <div className="bg-white rounded-xl shadow p-12 text-center">
-            <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Assignments Yet</h3>
+          <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 p-12 text-center">
+            <div className="p-4 bg-gradient-to-br from-gray-100 to-slate-100 rounded-2xl inline-block mb-4">
+              <Package className="w-16 h-16 text-gray-400" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">No Assignments Yet</h3>
             <p className="text-gray-600">You don't have any tickets assigned to you at the moment.</p>
           </div>
         ) : (
           <div className="grid gap-6">
             {tickets.map((ticket) => (
-              <div key={ticket._id} className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div key={ticket._id} className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 overflow-hidden hover:shadow-2xl transition-all">
                 <div className="p-6">
                   {/* Ticket Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-2xl font-bold text-gray-900">#{ticket.ticketId}</span>
+                        <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">#{ticket.ticketId}</span>
                         {ticket.isSOS && (
-                          <span className="px-3 py-1 bg-red-100 text-red-800 text-xs font-bold rounded-full">
+                          <span className="px-3 py-1 bg-gradient-to-r from-red-100 to-rose-100 border border-red-200 text-red-800 text-xs font-bold rounded-full shadow-sm">
                             🚨 SOS
                           </span>
                         )}
-                        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                          ticket.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          ticket.status === 'in-progress' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-blue-100 text-blue-800'
+                        <span className={`px-3 py-1 text-xs font-semibold rounded-full shadow-sm ${
+                          ticket.status === 'completed' ? 'bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 text-green-800' :
+                          ticket.status === 'in-progress' ? 'bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-200 text-yellow-800' :
+                          'bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 text-blue-800'
                         }`}>
                           {ticket.status}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500">
-                        <Clock className="w-4 h-4 inline mr-1" />
+                      <p className="text-sm text-gray-600 flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
                         Dispatched: {new Date(ticket.dispatchedAt).toLocaleString()}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-700">Assigned by</p>
-                      <p className="text-lg font-semibold text-blue-600">
+                    <div className="text-right glass-card bg-gradient-to-br from-blue-50 to-indigo-50 backdrop-blur p-3 rounded-xl border border-blue-200">
+                      <p className="text-xs font-medium text-blue-700 mb-1">Assigned by</p>
+                      <p className="text-lg font-bold text-blue-900">
                         {ticket.assignedTo?.organizationName || 'NGO'}
                       </p>
                     </div>
                   </div>
 
                   {/* Ticket Details Grid */}
-                  <div className="grid md:grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 mb-1">
-                        <Users className="w-4 h-4 inline mr-1" />
+                  <div className="grid md:grid-cols-2 gap-4 mb-4 p-5 glass-card bg-gradient-to-br from-gray-50/80 to-slate-50/80 backdrop-blur supports-[backdrop-filter]:bg-gray-50/60 rounded-xl border border-gray-200">
+                    <div className="bg-white/60 backdrop-blur p-3 rounded-lg">
+                      <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                        <Users className="w-4 h-4 text-blue-600" />
                         Contact Person
                       </p>
-                      <p className="font-semibold">{ticket.name || 'Anonymous'}</p>
+                      <p className="font-bold text-gray-900">{ticket.name || 'Anonymous'}</p>
                       <p className="text-sm text-gray-600">{ticket.phone}</p>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 mb-1">
-                        <MapPin className="w-4 h-4 inline mr-1" />
+                    <div className="bg-white/60 backdrop-blur p-3 rounded-lg">
+                      <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                        <MapPin className="w-4 h-4 text-green-600" />
                         Location
                       </p>
-                      <p className="text-sm">{ticket.address}</p>
-                      {ticket.landmark && <p className="text-xs text-gray-500">Landmark: {ticket.landmark}</p>}
+                      <p className="text-sm text-gray-900">{ticket.address}</p>
+                      {ticket.landmark && <p className="text-xs text-gray-600">📍 {ticket.landmark}</p>}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 mb-1">Help Types</p>
-                      <div className="flex flex-wrap gap-1">
+                    <div className="bg-white/60 backdrop-blur p-3 rounded-lg">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Help Types</p>
+                      <div className="flex flex-wrap gap-2">
                         {ticket.helpTypes?.map((type, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                          <span key={idx} className="px-2 py-1 bg-gradient-to-r from-blue-100 to-blue-50 border border-blue-200 text-blue-800 text-xs rounded-lg font-medium">
                             {type}
                           </span>
                         ))}
                       </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-600 mb-1">Beneficiaries</p>
-                      <p className="text-sm">
-                        Adults: {ticket.adults || 0} | Children: {ticket.children || 0} | Elderly: {ticket.elderly || 0}
+                    <div className="bg-white/60 backdrop-blur p-3 rounded-lg">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Beneficiaries</p>
+                      <p className="text-sm text-gray-900">
+                        👥 {ticket.adults || 0} Adults | 👶 {ticket.children || 0} Children | 👴 {ticket.elderly || 0} Elderly
                       </p>
                     </div>
                   </div>
 
                   {ticket.description && (
-                    <div className="mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-                      <p className="text-sm font-medium text-gray-700 mb-1">
-                        <FileText className="w-4 h-4 inline mr-1" />
+                    <div className="mb-4 p-4 glass-card bg-gradient-to-r from-yellow-50/80 to-amber-50/80 backdrop-blur border-l-4 border-yellow-500 rounded-xl">
+                      <p className="text-sm font-bold text-yellow-900 mb-2 flex items-center gap-1">
+                        <FileText className="w-4 h-4" />
                         Description
                       </p>
-                      <p className="text-sm text-gray-800">{ticket.description}</p>
+                      <p className="text-sm text-yellow-800">{ticket.description}</p>
                     </div>
                   )}
 
                   {/* Delivery Proof Section */}
-                  <div className="border-t pt-4">
-                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                      <Upload className="w-5 h-5 mr-2 text-blue-600" />
+                  <div className="border-t border-gray-200 pt-5 mt-4">
+                    <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <div className="p-2 bg-gradient-to-br from-indigo-100 to-indigo-50 rounded-xl">
+                        <Upload className="w-5 h-5 text-indigo-600" />
+                      </div>
                       Delivery Proof
                     </h4>
                     
                     {ticket.deliveryProof && ticket.deliveryProof.length > 0 ? (
                       <div className="mb-4">
-                        <p className="text-sm text-green-600 font-medium mb-2">
-                          <CheckCircle className="w-4 h-4 inline mr-1" />
+                        <p className="text-sm text-green-700 font-semibold mb-3 flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" />
                           {ticket.deliveryProof.length} file(s) uploaded
                         </p>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           {ticket.deliveryProof.map((file, idx) => (
-                            <div key={idx} className="p-2 bg-gray-100 rounded text-xs">
-                              <p className="truncate font-medium">{file.originalname}</p>
-                              <p className="text-gray-500">{new Date(file.uploadedAt).toLocaleDateString()}</p>
+                            <div key={idx} className="glass-card bg-gradient-to-br from-green-50 to-emerald-50 backdrop-blur p-3 rounded-xl border border-green-200 text-xs">
+                              <p className="truncate font-semibold text-green-900">{file.originalname}</p>
+                              <p className="text-green-600 mt-1">{new Date(file.uploadedAt).toLocaleDateString()}</p>
                             </div>
                           ))}
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 mb-3">No delivery proof uploaded yet</p>
+                      <p className="text-sm text-gray-500 mb-4 italic">No delivery proof uploaded yet</p>
                     )}
 
                     {ticket.status !== 'completed' && (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-bold text-gray-900 mb-3">
                             Upload Photos/Documents
                           </label>
                           <input
@@ -213,21 +214,21 @@ const DispatcherDashboard = () => {
                             multiple
                             accept="image/*,.pdf"
                             onChange={handleFileChange}
-                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                            className="block w-full text-sm text-gray-700 file:mr-4 file:py-3 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-600 file:to-indigo-600 file:text-white hover:file:from-blue-700 hover:file:to-indigo-700 file:shadow-lg file:cursor-pointer"
                           />
                           {uploadFiles.length > 0 && (
-                            <p className="text-sm text-gray-600 mt-1">
-                              {uploadFiles.length} file(s) selected
+                            <p className="text-sm text-blue-600 font-medium mt-2">
+                              📎 {uploadFiles.length} file(s) selected
                             </p>
                           )}
                         </div>
                         <button
                           onClick={() => handleUploadProof(ticket._id)}
                           disabled={uploading || uploadFiles.length === 0}
-                          className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+                          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all"
                         >
-                          <Upload className="w-4 h-4" />
-                          <span>{uploading ? 'Uploading...' : 'Upload Proof'}</span>
+                          <Upload className="w-5 h-5" />
+                          <span>{uploading ? 'Uploading...' : 'Upload Delivery Proof'}</span>
                         </button>
                       </div>
                     )}
