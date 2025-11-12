@@ -19,17 +19,7 @@ const demoNgoActivities = [
   { id: 'ngo-3', org: 'RescueOps', services: ['Rescue', 'Logistics'], lat: 19.2, lng: 72.9, activeTickets: 15 }
 ];
 
-function latLngToPercent(lat, lng) {
-  // Very rough bounding box for India for a background image overlay projection
-  // lat: 8..37.5 ; lng: 68..97.5
-  const latMin = 8;
-  const latMax = 37.5;
-  const lngMin = 68;
-  const lngMax = 97.5;
-  const y = 100 - ((lat - latMin) / (latMax - latMin)) * 100; // invert Y for CSS top
-  const x = ((lng - lngMin) / (lngMax - lngMin)) * 100;
-  return { top: `${y}%`, left: `${x}%` };
-}
+// Removed unused latLngToPercent helper (not used in current implementation)
 
 const StatusMap = () => {
   const [selectedDisasters, setSelectedDisasters] = useState(DISASTER_TYPES);

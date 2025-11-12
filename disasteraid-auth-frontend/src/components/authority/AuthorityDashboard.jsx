@@ -22,7 +22,6 @@ const TABS = [
 
 const AuthorityDashboard = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [criticalAlertsCount, setCriticalAlertsCount] = useState(0);
   const [sosCount, setSOSCount] = useState(0);
   const [mapData, setMapData] = useState(null);
   const [heatPoints, setHeatPoints] = useState([]);
@@ -30,48 +29,36 @@ const AuthorityDashboard = ({ user, onLogout }) => {
 
   // Fetch map data from backend (tickets + overlays)
   useEffect(() => {
-    let mounted = true;
-    const load = async () => {
+    let active = true;
+    (async () => {
       try {
         setLoadingMap(true);
         const res = await API.get('/authority/map');
-        if (!mounted) return;
-        if (res.data && res.data.success) {
+        if (!active) return;
+        if (res.data?.success) {
           const ticketsFC = res.data.tickets || { type: 'FeatureCollection', features: [] };
           const overlays = res.data.overlays || {};
           setMapData({ tickets: ticketsFC, overlays });
-
-          // convert features to heat points
           const points = (ticketsFC.features || []).map(f => {
-            const coords = f.geometry && f.geometry.coordinates;
+            const coords = f.geometry?.coordinates;
             if (!coords || coords.length < 2) return null;
-            const lng = coords[0];
-            const lat = coords[1];
-            const intensity = f.properties && f.properties.isSOS ? 0.95 : 0.4;
-            return { lat, lng, intensity, props: f.properties };
+            const [lng, lat] = coords;
+            return { lat, lng, intensity: f.properties?.isSOS ? 0.95 : 0.4, props: f.properties };
           }).filter(Boolean);
           setHeatPoints(points);
-
-          // update counts
-          const sosCountLocal = (ticketsFC.features || []).filter(f => f.properties && f.properties.isSOS).length;
-          setSOSCount(sosCountLocal);
-          const criticalCount = (ticketsFC.features || []).filter(f => f.properties && f.properties.status === 'critical').length;
-          setCriticalAlertsCount(criticalCount);
+          setSOSCount((ticketsFC.features || []).filter(f => f.properties?.isSOS).length);
         }
       } catch (e) {
-        console.error('Failed to load authority map:', e);
+        console.error('AuthorityDashboard: map load failed', e);
       } finally {
-        if (mounted) setLoadingMap(false);
+        active && setLoadingMap(false);
       }
-    };
-
-    load();
-    return () => { mounted = false; };
+    })();
+    return () => { active = false; };
   }, []);
 
   // No DB fetch for now. Use static/demo values to mimic prototype counts.
   useEffect(() => {
-    setCriticalAlertsCount(2);
     setSOSCount(5);
   }, []);
 
@@ -160,8 +147,6 @@ const AuthorityDashboard = ({ user, onLogout }) => {
 
                 const sosCountLocal = (ticketsFC.features || []).filter(f => f.properties && f.properties.isSOS).length;
                 setSOSCount(sosCountLocal);
-                const criticalCount = (ticketsFC.features || []).filter(f => f.properties && f.properties.status === 'critical').length;
-                setCriticalAlertsCount(criticalCount);
               }
             } catch (e) {
               console.error('Failed to refresh authority map after assignment:', e);

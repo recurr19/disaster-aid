@@ -1,4 +1,4 @@
-import { Clock, Truck, CheckCircle2, MapPin, Send } from "lucide-react";
+import { Truck, MapPin, Send } from "lucide-react";
 import { useState } from "react";
 import "./ActiveRequestsTracker.css";
 
@@ -16,7 +16,7 @@ export default function ActiveRequestsTracker({ requests, onStatusUpdate, onDisp
           <h3 className="text-lg font-semibold">{r.citizenName}</h3>
           <p className="text-sm">{r.helpType}</p>
           <p className="text-sm flex items-center gap-1"><MapPin className="w-4 h-4" /> {r.location}</p>
-          <p className="text-xs text-gray-500">Accepted at: {r.acceptedAt}</p>
+          {r.acceptedAt && <p className="text-xs text-gray-500">Accepted at: {r.acceptedAt}</p>}
           
           {r.isDispatched && (
             <div className="mt-2 px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full inline-flex items-center gap-1">

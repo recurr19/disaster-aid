@@ -340,7 +340,7 @@ const Dashboard = () => {
   const [trackerError, setTrackerError] = useState('');
   const [pollId, setPollId] = useState(null);
 
-  const handleStatusCheck = async () => {
+  const handleStatusCheck = useCallback(async () => {
     if (!formData.ticketId) return;
     try {
       setTrackerLoading(true);
@@ -353,7 +353,7 @@ const Dashboard = () => {
     } finally {
       setTrackerLoading(false);
     }
-  };
+  }, [formData.ticketId]);
 
   // Auto-refresh tracker every 12s when status tab is active and ticketId present
   useEffect(() => {
@@ -369,7 +369,7 @@ const Dashboard = () => {
     }, 12000);
     setPollId(id);
     return () => clearInterval(id);
-  }, [activeTab, formData.ticketId]); 
+  }, [activeTab, formData.ticketId, handleStatusCheck, pollId]);
 
   // Realtime updates for current ticket
   useEffect(() => {
@@ -381,7 +381,7 @@ const Dashboard = () => {
     return () => {
       s.off(channel, handler);
     };
-  }, [activeTab, formData.ticketId]);
+  }, [activeTab, formData.ticketId, handleStatusCheck]);
 
   const handleLogout = () => {
     logout();

@@ -592,16 +592,7 @@
 
 
 import { useState } from "react";
-import {
-  MapPin,
-  Users,
-  Activity,
-  TrendingUp,
-  Filter,
-  X,
-  Package,
-  AlertCircle,
-} from "lucide-react";
+import { Users, Activity, Filter, X, Package, AlertCircle } from "lucide-react";
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 import indiaGeo from "../data/india_full.geojson"; // local file
 
@@ -631,14 +622,7 @@ const NGOServiceHeatMap = () => {
     Haryana: { activeRequests: 29, completedRequests: 290, pendingRequests: 5, ngosServing: 10, responseTime: "34 min", color: "#fef08a" },
   };
 
-  const getFilteredCount = (state) => {
-    const data = serviceData[state];
-    if (!data) return 0;
-    if (filterType === "active") return data.activeRequests;
-    if (filterType === "completed") return data.completedRequests;
-    if (filterType === "pending") return data.pendingRequests;
-    return data.activeRequests;
-  };
+  // getFilteredCount not used in current UI; remove to avoid unused warnings
 
   const totalActive = Object.values(serviceData).reduce((sum, s) => sum + s.activeRequests, 0);
   const totalCompleted = Object.values(serviceData).reduce((sum, s) => sum + s.completedRequests, 0);

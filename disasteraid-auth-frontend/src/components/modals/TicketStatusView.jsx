@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, AlertTriangle, Clock, CheckCircle2, User, Phone, MapPin, Users, Package, Heart, FileText, Battery, Wifi, Calendar, Truck, CheckCircle } from 'lucide-react';
 import { getTrackerStatus } from '../../api/tracker';
 
@@ -7,13 +7,7 @@ const TicketStatusView = ({ ticket, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (ticket?.ticketId) {
-      loadStatusHistory();
-    }
-  }, [ticket?.ticketId]);
-
-  const loadStatusHistory = async () => {
+  const loadStatusHistory = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -25,7 +19,13 @@ const TicketStatusView = ({ ticket, onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [ticket?.ticketId]);
+
+  useEffect(() => {
+    if (ticket?.ticketId) {
+      loadStatusHistory();
+    }
+  }, [ticket?.ticketId, loadStatusHistory]);
 
   const getStatusBadgeClass = (status) => {
     const statusMap = {

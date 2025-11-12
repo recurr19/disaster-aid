@@ -1,8 +1,7 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import './authority.css';
-import { listOverlays, createOverlay, updateOverlay, deleteOverlay } from '../../api/authority';
+import { listOverlays, createOverlay, deleteOverlay } from '../../api/authority';
 import { MapContainer, TileLayer, Marker, Polygon, useMapEvents, useMap } from 'react-leaflet';
-import L from 'leaflet';
 
 const ShelterManagement = ({ overlays = null }) => {
   const [items, setItems] = useState([]);
@@ -32,7 +31,7 @@ const ShelterManagement = ({ overlays = null }) => {
   const [mapLogs, setMapLogs] = useState([]);
   const pushMapLog = (msg) => setMapLogs(prev => [...prev, `${new Date().toISOString()} ${msg}`].slice(-50));
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (overlays) {
       // flatten overlays into list format similar to API response
       const list = [];
@@ -50,9 +49,9 @@ const ShelterManagement = ({ overlays = null }) => {
     } catch (e) {
       setItems([]);
     }
-  };
+  }, [overlays]);
 
-  useEffect(() => { load(); }, [overlays]);
+  useEffect(() => { load(); }, [load]);
 
   // Convenience: default map center (India)
   const defaultCenter = [22.5937, 78.9629];
@@ -140,12 +139,8 @@ const ShelterManagement = ({ overlays = null }) => {
       setLoading(true);
       let geometry = null;
       if (form.type === 'blockedRoute' && polygonPoints.length > 0) {
-          // compute keys first to avoid noisy logs when nothing changed
-          const boundsKey = areaBounds ? JSON.stringify(areaBounds) : null;
-          const markerKey = focusedMarker ? JSON.stringify(focusedMarker) : null;
         const coords = polygonPoints.map(p => [p[1], p[0]]);
-            // nothing new to apply
-            return;
+        geometry = { type: 'Polygon', coordinates: [coords] };
       } else {
         const lng = pointMarker ? pointMarker[1] : (form.longitude ? Number(form.longitude) : null);
         const lat = pointMarker ? pointMarker[0] : (form.latitude ? Number(form.latitude) : null);
@@ -165,6 +160,10 @@ const ShelterManagement = ({ overlays = null }) => {
         },
         geometry
       };
+      if (!geometry) {
+        setLoading(false);
+        return;
+      }
       await createOverlay(payload);
       setForm({ ...form, name: '', capacity: '', latitude: '', longitude: '' });
       setPolygonPoints([]); setPointMarker(null);

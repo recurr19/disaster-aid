@@ -3,7 +3,7 @@ import API from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import { Building2, User, Phone, MapPin, Truck, Activity, Settings } from 'lucide-react';
+import { Building2, User, MapPin, Truck, Activity, Settings } from 'lucide-react';
 import DispatcherCredentialsModal from '../components/modals/DispatcherCredentialsModal';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -94,10 +94,7 @@ const Register = () => {
         : prev.areasOfWork.filter((v) => v !== value)
     }));
   };
-  const handleMultiSelectAreas = (e) => {
-    const values = Array.from(e.target.selectedOptions).map((o) => o.value);
-    setForm((prev) => ({ ...prev, areasOfWork: values }));
-  };
+  // handleMultiSelectAreas unused; removed to avoid ESLint warning
 
   const handleSubmit = async (e) => {
     e.preventDefault();

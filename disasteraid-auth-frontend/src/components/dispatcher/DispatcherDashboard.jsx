@@ -5,7 +5,7 @@ import API from '../../api/axios';
 const DispatcherDashboard = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTicket, setSelectedTicket] = useState(null);
+  // Removed unused selectedTicket state (not referenced in UI rendering)
   const [uploadFiles, setUploadFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
 
@@ -47,9 +47,8 @@ const DispatcherDashboard = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      alert('Delivery proof uploaded successfully!');
-      setUploadFiles([]);
-      setSelectedTicket(null);
+  alert('Delivery proof uploaded successfully!');
+  setUploadFiles([]);
       fetchMyTickets();
     } catch (err) {
       console.error('Error uploading proof:', err);

@@ -4,10 +4,9 @@ import './authority.css';
 const AutomatedBriefs = ({ mapData }) => {
   const [brief, setBrief] = useState('');
 
-  const features = mapData && mapData.tickets && mapData.tickets.features ? mapData.tickets.features : [];
-  const overlays = mapData && mapData.overlays ? mapData.overlays : {};
-
   const summary = useMemo(() => {
+    const features = mapData?.tickets?.features ? mapData.tickets.features : [];
+    const overlays = mapData?.overlays ? mapData.overlays : {};
     const now = Date.now();
     const total = features.length;
     const sos = features.filter(f => f.properties && f.properties.isSOS).length;
@@ -54,7 +53,7 @@ const AutomatedBriefs = ({ mapData }) => {
     });
 
     return { total, sos, critical, unassigned, byHelp, trendByHelp, shelters, totalShelterCapacity, sheltersNearCapacity };
-  }, [features, overlays]);
+  }, [mapData]);
 
   const generate = () => {
     const lines = [];

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Polyline, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -24,14 +24,12 @@ const Heatmap = ({ points = [], overlays = null }) => {
     let cancelled = false;
     const tryLoad = async () => {
       try {
-        // dynamic import may fail if package not installed; that's fine
-        const heat = await import('leaflet.heat');
+        await import('leaflet.heat'); // dynamic import may fail if package not installed; that's fine
         if (!cancelled && L && L.heatLayer) {
           setHeatAvailable(true);
         }
       } catch (err) {
-        // plugin not present; heatmap won't be used now
-        setHeatAvailable(false);
+        setHeatAvailable(false); // plugin not present; heatmap won't be used now
       }
     };
     tryLoad();
@@ -55,27 +53,23 @@ const Heatmap = ({ points = [], overlays = null }) => {
     return () => controller.abort();
   }, [overlays]);
 
+  const heatLatLngs = useMemo(() => (points || []).map(p => [p.lat, p.lng, p.intensity || 0.5]), [points]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
-    // If heat plugin available, (re)create heat layer
-    if (heatAvailable && L && L.heatLayer) {
-      // remove existing
-      if (heatRef.current) {
-        try { heatRef.current.remove(); } catch (e) {}
-      }
-      const latlngs = (points || []).map(p => [p.lat, p.lng, p.intensity || 0.5]);
-      heatRef.current = L.heatLayer(latlngs, { radius: 25, blur: 15, maxZoom: 17 }).addTo(map);
+    if (!heatAvailable || !L?.heatLayer) return;
+    if (heatRef.current) {
+      try { heatRef.current.remove(); } catch (e) {}
     }
-    // If no plugin, do nothing — map remains blank until data integrated
-  }, [heatAvailable, points]);
+    heatRef.current = L.heatLayer(heatLatLngs, { radius: 25, blur: 15, maxZoom: 17 }).addTo(map);
+  }, [heatAvailable, heatLatLngs]);
 
   // Default center (India) and zoom
   const center = [22.5937, 78.9629];
 
   // derive points from either passed prop, or mapData tickets
-  const apiPoints = (mapData?.tickets?.features || []).map(f => {
+  const apiPoints = useMemo(() => (mapData?.tickets?.features || []).map(f => {
     const [lng, lat] = f.geometry.coordinates || [];
     const props = f.properties || {};
     return {
@@ -83,7 +77,7 @@ const Heatmap = ({ points = [], overlays = null }) => {
       intensity: props.isSOS ? 1.0 : 0.6,
       label: `${props.ticketId} — ${props.status}${props.assignedTo?.organizationName ? ' • ' + props.assignedTo.organizationName : ''}`
     };
-  });
+  }), [mapData]);
 
   const displayPoints = (points && points.length) ? points : (apiPoints.length ? apiPoints : []);
 

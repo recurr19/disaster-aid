@@ -1,9 +1,7 @@
-import { AlertCircle, Users, MapPin, CheckCircle, XCircle, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { AlertCircle, Users, MapPin, CheckCircle, XCircle } from "lucide-react";
 import "./MatchedCitizensList.css";
 
 export default function MatchedCitizensList({ citizens, onAccept, onReject }) {
-  const [loading, setLoading] = useState(false);
 
   if (citizens.length === 0) {
     return (
