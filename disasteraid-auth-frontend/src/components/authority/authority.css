@@ -205,3 +205,38 @@
   overflow-x: auto;
   padding-bottom: 0.25rem;
 }
+
+/* Inline ticket detail expansion */
+.detail-row {
+  height: 0;
+  transition: height 240ms ease, opacity 200ms ease;
+  overflow: hidden;
+}
+.detail-row .detail-container {
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-top: 1px solid #e6e6e6;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+  opacity: 0;
+  transform-origin: top;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+.detail-row.open {
+  height: auto; /* allow natural height when open; JS/CSS will animate opacity */
+}
+.detail-row.open .detail-container {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Ensure modal-specific styles inside TicketDetail don't conflict when used inline */
+.ticket-detail-modal {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.ticket-detail-card {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
