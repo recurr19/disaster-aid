@@ -833,34 +833,46 @@ const Dashboard = () => {
                       {/* Interactive Leaflet Map */}
                       <div className="mt-4 rounded-xl overflow-hidden border border-gray-200 shadow-lg">
                         <div 
-                          id="location-map" 
+                          id={`location-map-${coords.lat}-${coords.lng}`}
                           style={{ height: '300px', width: '100%' }}
                           ref={(mapContainer) => {
                             if (mapContainer && window.L && coords.lat && coords.lng) {
-                              // Clear any existing map
+                              // Check if map already exists and remove it
+                              if (mapContainer._leaflet_id) {
+                                mapContainer._leaflet_id = null;
+                              }
+                              
+                              // Clear container
                               mapContainer.innerHTML = '';
                               
-                              // Create new map
-                              const map = window.L.map(mapContainer, {
-                                center: [coords.lat, coords.lng],
-                                zoom: 15,
-                                zoomControl: true
-                              });
+                              // Small delay to ensure container is ready
+                              setTimeout(() => {
+                                try {
+                                  // Create new map
+                                  const map = window.L.map(mapContainer, {
+                                    center: [coords.lat, coords.lng],
+                                    zoom: 15,
+                                    zoomControl: true
+                                  });
 
-                              // Add tile layer
-                              window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                attribution: '© OpenStreetMap contributors'
-                              }).addTo(map);
+                                  // Add tile layer
+                                  window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                    attribution: '© OpenStreetMap contributors'
+                                  }).addTo(map);
 
-                              // Add marker
-                              const marker = window.L.marker([coords.lat, coords.lng]).addTo(map);
-                              marker.bindPopup(`
-                                <div style="text-align: center; padding: 8px;">
-                                  <strong>📍 Your Location</strong><br/>
-                                  <small>Lat: ${coords.lat.toFixed(6)}<br/>
-                                  Lng: ${coords.lng.toFixed(6)}</small>
-                                </div>
-                              `).openPopup();
+                                  // Add marker
+                                  const marker = window.L.marker([coords.lat, coords.lng]).addTo(map);
+                                  marker.bindPopup(`
+                                    <div style="text-align: center; padding: 8px;">
+                                      <strong>📍 Your Location</strong><br/>
+                                      <small>Lat: ${coords.lat.toFixed(6)}<br/>
+                                      Lng: ${coords.lng.toFixed(6)}</small>
+                                    </div>
+                                  `).openPopup();
+                                } catch (error) {
+                                  console.error('Error initializing map:', error);
+                                }
+                              }, 100);
                             }
                           }}
                         />
