@@ -830,6 +830,42 @@ const Dashboard = () => {
                         </div>
                       </div>
 
+                      {/* Interactive Leaflet Map */}
+                      <div className="mt-4 rounded-xl overflow-hidden border border-gray-200 shadow-lg">
+                        <div 
+                          id="location-map" 
+                          style={{ height: '300px', width: '100%' }}
+                          ref={(mapContainer) => {
+                            if (mapContainer && window.L && coords.lat && coords.lng) {
+                              // Clear any existing map
+                              mapContainer.innerHTML = '';
+                              
+                              // Create new map
+                              const map = window.L.map(mapContainer, {
+                                center: [coords.lat, coords.lng],
+                                zoom: 15,
+                                zoomControl: true
+                              });
+
+                              // Add tile layer
+                              window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                attribution: '© OpenStreetMap contributors'
+                              }).addTo(map);
+
+                              // Add marker
+                              const marker = window.L.marker([coords.lat, coords.lng]).addTo(map);
+                              marker.bindPopup(`
+                                <div style="text-align: center; padding: 8px;">
+                                  <strong>📍 Your Location</strong><br/>
+                                  <small>Lat: ${coords.lat.toFixed(6)}<br/>
+                                  Lng: ${coords.lng.toFixed(6)}</small>
+                                </div>
+                              `).openPopup();
+                            }
+                          }}
+                        />
+                      </div>
+                      
                       {/* Location Confirmation */}
                       <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
                         <div className="flex items-center gap-2 text-green-800">
