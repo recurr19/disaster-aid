@@ -95,6 +95,27 @@ ticketSchema.add({
   }]
 });
 
+// Optional GeoJSON location for the ticket (for accurate matching). Stored as [lng, lat]
+ticketSchema.add({
+  locationGeo: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      required: false
+    },
+    coordinates: {
+      type: [Number], // [lng, lat]
+      required: false
+    }
+  }
+});
+
+// 2dsphere index for geo queries (only when coordinates exist)
+ticketSchema.index(
+  { locationGeo: '2dsphere' },
+  { partialFilterExpression: { 'locationGeo.coordinates': { $type: 'array' } } }
+);
+
 const Ticket = mongoose.model("Ticket", ticketSchema);
 
 module.exports = Ticket;
