@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import './authority.css';
 import { listOverlays, createOverlay, deleteOverlay } from '../../api/authority';
 import { MapContainer, TileLayer, Marker, CircleMarker, Polygon, Popup, useMapEvents, useMap } from 'react-leaflet';
@@ -77,9 +77,9 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
       setLoading(true);
       const geometry = { type: 'Point', coordinates: [Number(lng), Number(lat)] };
       
-      // Generate default name if not provided
-      const defaultName = currentForm.name || `${currentForm.type} at ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      
+      // Generate default name if not provided (backend requires name)
+      const defaultName = currentForm.name && currentForm.name.trim() ? currentForm.name : `${currentForm.type} at ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
       const payload = {
         type: currentForm.type,
         name: defaultName,
@@ -173,60 +173,84 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
     const map = useMap();
     const lastAppliedRef = useRef({ boundsKey: null, markerKey: null });
     const isRunningRef = useRef(false);
+    // Track whether the user has manually interacted with the map since the last programmatic focus.
+    // If true, do not reapply programmatic bounds/focus so the user is free to pan/zoom.
+    const userInteractedRef = useRef(false);
     
     useEffect(() => {
       if (!map) return;
       if (isRunningRef.current) return; // Prevent concurrent runs
-      
+
+      // If the user manually interacts with the map (pan/zoom/drag) we should clear the area focus
+      const userInteractionHandler = (e) => {
+        // originalEvent exists for user-initiated interactions; programmatic moves won't have it
+        if (e && e.originalEvent) {
+          try {
+            // mark that the user interacted so subsequent programmatic moves are suppressed
+            userInteractedRef.current = true;
+            // Do NOT clear areaBounds/areaFocused/focusedMarker here; keep the visual focus
+            // so the operator knows which area was selected. Just prevent programmatic
+            // re-focusing so they can pan/zoom freely.
+            pushMapLog('User interaction detected - programmatic focus will be suppressed');
+            setUiWarning('User moved the map — automatic refocus disabled for this area');
+          } catch (er) { /* ignore */ }
+        }
+      };
+
+      map.on('movestart', userInteractionHandler);
+      map.on('zoomstart', userInteractionHandler);
+      map.on('dragstart', userInteractionHandler);
+
       const run = async () => {
         try {
           isRunningRef.current = true;
           // expose map instance for outside debugging
           try { mapRef.current = map; } catch (e) { /* ignore */ }
-          
+
           // avoid reapplying same bounds/marker repeatedly
           const boundsKey = areaBounds ? JSON.stringify(areaBounds) : null;
           const markerKey = focusedMarker ? JSON.stringify(focusedMarker) : null;
-          
-          // If both are null and we've already applied null, don't do anything (prevent zoom out)
+
+          // If both are null and we've already applied null, don't do anything
           if (!boundsKey && !markerKey) {
             if (lastAppliedRef.current.boundsKey === null && lastAppliedRef.current.markerKey === null) {
               isRunningRef.current = false;
               return;
             }
-            // If we had bounds/marker before and now both are null, just update ref but don't move map
             lastAppliedRef.current.boundsKey = null;
             lastAppliedRef.current.markerKey = null;
             isRunningRef.current = false;
             return;
           }
-          
+
+          // If the same focus was already applied, skip. Also skip reapplying if the user has interacted
           if (boundsKey === lastAppliedRef.current.boundsKey && markerKey === lastAppliedRef.current.markerKey) {
             isRunningRef.current = false;
             return;
           }
+          if (userInteractedRef.current) {
+            // user has manually moved the map since last programmatic focus - do not reapply
+            isRunningRef.current = false;
+            pushMapLog('Skipping programmatic map focus because user interaction was detected');
+            return;
+          }
 
           if (areaBounds) {
-            const center = [(areaBounds[0][0] + areaBounds[1][0]) / 2, (areaBounds[0][1] + areaBounds[1][1]) / 2];
             try { map.invalidateSize(); } catch (e) { /* ignore */ }
-            // Use setView with maxZoom to prevent zooming out too far
-            const currentZoom = map.getZoom();
-            const targetZoom = Math.max(13, currentZoom); // Don't zoom out, only zoom in if needed
-            try { map.setView(center, targetZoom); } catch (e) { console.warn('MapController setView failed', e); }
-            try { await new Promise(r => setTimeout(r, 100)); } catch (e) { /* ignore */ }
-            try { map.flyToBounds(areaBounds, { animate: true, duration: 0.6, maxZoom: 15 }); } catch (e) { console.warn('MapController flyToBounds failed', e); }
-            // mark applied
+            // Fit bounds once to focus the area; do not force a min/max zoom so the user can zoom freely afterwards
+            try { map.fitBounds(areaBounds, { animate: true, duration: 0.6 }); } catch (e) { console.warn('MapController fitBounds failed', e); }
             lastAppliedRef.current.boundsKey = boundsKey;
             lastAppliedRef.current.markerKey = markerKey;
+            // Reset the user interaction flag because this focus was programmatically applied intentionally
+            userInteractedRef.current = false;
           } else if (focusedMarker) {
             try { map.invalidateSize(); } catch (e) { /* ignore */ }
-            const currentZoom = map.getZoom();
-            const targetZoom = Math.max(13, currentZoom); // Don't zoom out, only zoom in if needed
-            try { map.setView(focusedMarker, targetZoom, { animate: true }); } catch (e) { console.warn('MapController setView focused failed: ' + e.message); }
+            try { map.setView(focusedMarker, map.getZoom(), { animate: true }); } catch (e) { console.warn('MapController setView focused failed: ' + e.message); }
             lastAppliedRef.current.boundsKey = boundsKey;
             lastAppliedRef.current.markerKey = markerKey;
+            userInteractedRef.current = false;
           }
-          
+
           // Call onFocused only once after movement completes
           if (onFocused && (areaBounds || focusedMarker)) {
             setTimeout(() => {
@@ -240,6 +264,12 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
         }
       };
       run();
+
+      return () => {
+        map.off('movestart', userInteractionHandler);
+        map.off('zoomstart', userInteractionHandler);
+        map.off('dragstart', userInteractionHandler);
+      };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [map, areaBounds, focusedMarker]);
     return null;
@@ -263,7 +293,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
 
       const payload = {
         type: form.type,
-        name: form.name,
+        name: (form.name && form.name.trim()) ? form.name : `${form.type} at ${geometry && geometry.type === 'Point' && geometry.coordinates ? `${geometry.coordinates[1].toFixed(4)}, ${geometry.coordinates[0].toFixed(4)}` : Date.now()}` ,
         status: form.status,
         capacity: form.capacity ? Number(form.capacity) : undefined,
         properties: {
@@ -274,6 +304,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
       };
       if (!geometry) {
         setLoading(false);
+        setUiWarning('Please select a location on the map or provide latitude/longitude');
         return;
       }
       
@@ -427,7 +458,12 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
         <div className="mb-3 flex gap-2">
           <input placeholder="Pincode or City, State" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input-field md:col-span-3" />
           <button type="button" className="button-primary" onClick={async () => {
-            if (!searchQuery) return alert('Enter pincode or city, state');
+            // Search is optional. If no query provided, simply clear previous warnings and return.
+            if (!searchQuery) {
+              setUiWarning('Search is optional — click on the map to add overlays directly');
+              setLastGeocodeResult(null);
+              return;
+            }
             try {
               setSearching(true);
               setUiWarning(null);
