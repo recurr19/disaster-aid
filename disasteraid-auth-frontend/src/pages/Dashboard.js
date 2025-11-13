@@ -1,6 +1,6 @@
 import { useContext, useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, X, PlusCircle, Clock, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Phone, MapPin, Users, FileText, Camera, Search, X, PlusCircle, Clock, CheckCircle2, CheckCircle, Package, Heart, Truck } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import API from '../api/axios';
 import { getTrackerStatus } from '../api/tracker';
@@ -11,25 +11,15 @@ import NGODashboard from "../components/ngo/NGODashboard";
 import AuthorityDashboard from "../components/authority/AuthorityDashboard";
 import DispatcherDashboard from "../components/dispatcher/DispatcherDashboard";
 import AppHeader from "../components/common/AppHeader";
-
-// --- Leaflet / Map imports (add these near the top with other imports) ---
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-// Fix Leaflet's default icon URLs when bundling with CRA / webpack
-// Place this once in this file (or a shared file) so the marker icons show up
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
-  iconUrl: require('leaflet/dist/images/marker-icon.png'),
-  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
-});
-
-
+import DispatcherTrackingMap from "../components/maps/DispatcherTrackingMap";
 
 const Dashboard = () => {
   const { user, logout } = useContext(AuthContext);
+  
+  const formatStatus = (status) => {
+    if (!status) return 'Unknown';
+    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
   const { role } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('request');
@@ -440,9 +430,29 @@ const Dashboard = () => {
     async function fetchTickets() {
       try {
         setLoadingTickets(true);
-        const status = sidebarTab === 'active' ? 'active' : 'completed';
-        const res = await API.get('/tickets', { params: { status }, signal: controller.signal });
-        setTickets(Array.isArray(res.data?.tickets) ? res.data.tickets : []);
+        if (sidebarTab === 'active') {
+          const [resActive, resMatched, resTriaged, resInProgress, resFulfilled] = await Promise.all([
+            API.get('/tickets', { params: { status: 'active' }, signal: controller.signal }),
+            API.get('/tickets', { params: { status: 'matched' }, signal: controller.signal }),
+            API.get('/tickets', { params: { status: 'triaged' }, signal: controller.signal }),
+            API.get('/tickets', { params: { status: 'in_progress' }, signal: controller.signal }),
+            API.get('/tickets', { params: { status: 'fulfilled' }, signal: controller.signal })
+          ]);
+          const listA = Array.isArray(resActive.data?.tickets) ? resActive.data.tickets : [];
+          const listB = Array.isArray(resMatched.data?.tickets) ? resMatched.data.tickets : [];
+          const listC = Array.isArray(resTriaged.data?.tickets) ? resTriaged.data.tickets : [];
+          const listD = Array.isArray(resInProgress.data?.tickets) ? resInProgress.data.tickets : [];
+          const listE = Array.isArray(resFulfilled.data?.tickets) ? resFulfilled.data.tickets : [];
+          const uniq = new Map();
+          [...listA, ...listB, ...listC, ...listD, ...listE].forEach(t => {
+            const key = t.id || t.ticketId;
+            if (key && !uniq.has(key)) uniq.set(key, t);
+          });
+          setTickets(Array.from(uniq.values()));
+        } else {
+          const res = await API.get('/tickets', { params: { status: 'completed' }, signal: controller.signal });
+          setTickets(Array.isArray(res.data?.tickets) ? res.data.tickets : []);
+        }
       } catch (e) {
         if (e.name !== 'CanceledError') {
           setTickets([]);
@@ -820,25 +830,15 @@ const Dashboard = () => {
                         </div>
                       </div>
 
-                      {/* Map */}
-                      <div className="mt-4 rounded-xl overflow-hidden border border-gray-200 shadow-lg">
-                        <MapContainer
-                          center={[coords.lat, coords.lng]}
-                          zoom={15}
-                          scrollWheelZoom={true}
-                          style={{ height: '300px', width: '100%' }}
-                        >
-                          <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                          />
-                          <Marker position={[coords.lat, coords.lng]}>
-                            <Popup>
-                              Current location<br />
-                              Lat: {coords.lat.toFixed(6)}, Lng: {coords.lng.toFixed(6)}
-                            </Popup>
-                          </Marker>
-                        </MapContainer>
+                      {/* Location Confirmation */}
+                      <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                        <div className="flex items-center gap-2 text-green-800">
+                          <MapPin className="w-5 h-5" />
+                          <span className="font-semibold">Location Captured Successfully</span>
+                        </div>
+                        <p className="text-sm text-green-700 mt-1">
+                          Your coordinates have been recorded for emergency response
+                        </p>
                       </div>
                     </div>
                   )}
@@ -1214,14 +1214,16 @@ const Dashboard = () => {
                         </p>
                       </div>
                       {trackerData.ticket.isSOS && (
-                        <span className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-100 to-rose-100 border border-red-200 text-red-700 text-sm font-bold shadow-md">
-                          🚨 SOS
+                        <span className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-100 to-rose-100 border border-red-200 text-red-700 text-sm font-bold shadow-md flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4" /> SOS
                         </span>
                       )}
                     </div>
                     {trackerData.ticket.assignedTo ? (
                       <div className="glass-card border-l-4 border-green-500 bg-gradient-to-r from-green-50/80 to-emerald-50/80 backdrop-blur supports-[backdrop-filter]:bg-green-50/60 p-5 rounded-xl">
-                        <p className="font-bold text-green-900 mb-2">✓ Accepted by:</p>
+                        <p className="font-bold text-green-900 mb-2 flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4" /> Accepted by:
+                        </p>
                         <p className="text-green-900 font-semibold text-lg">{trackerData.ticket.assignedTo.organizationName}</p>
                         <p className="text-sm text-green-800 mt-1">{trackerData.ticket.assignedTo.phone} • {trackerData.ticket.assignedTo.location}</p>
                       </div>
@@ -1245,19 +1247,50 @@ const Dashboard = () => {
                       </div>
                     )}
                     {Array.isArray(trackerData.ticket.assignmentHistory) && trackerData.ticket.assignmentHistory.length > 0 && (
-                      <div className="glass-card bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50 p-5 rounded-xl border border-gray-200">
-                        <p className="font-bold text-gray-900 mb-3">Timeline</p>
-                        <ul className="space-y-3">
+                      <div className="glass-card bg-gradient-to-br from-blue-50/80 to-indigo-50/80 backdrop-blur supports-[backdrop-filter]:bg-blue-50/60 p-5 rounded-xl border border-blue-200">
+                        <p className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                          <MapPin className="w-5 h-5 text-blue-600" /> Status Progress
+                        </p>
+                        
+                        {/* Current Status Indicator */}
+                        <div className="mb-4 p-3 bg-white/80 rounded-lg border border-blue-200">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                              <CheckCircle2 className="w-4 h-4 text-white" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-blue-900 capitalize">{trackerData.ticket.status?.replace('_', ' ')}</p>
+                              <p className="text-sm text-blue-700">Current Status</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Timeline */}
+                        <div className="space-y-3 max-h-48 overflow-y-auto">
                           {trackerData.ticket.assignmentHistory.map((h, idx) => (
-                            <li key={idx} className="flex items-start gap-3">
-                              <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
-                              <div className="text-sm text-gray-700">
-                                <span className="font-medium text-gray-900">{new Date(h.assignedAt).toLocaleString()}</span>
-                                <span className="text-gray-600"> — {h.note || 'Update'}</span>
+                            <div key={idx} className="flex items-start gap-3 p-3 bg-white/60 rounded-lg border border-gray-200">
+                              <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5 flex-shrink-0">
+                                <Clock className="w-3 h-3 text-blue-600" />
                               </div>
-                            </li>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <p className="font-medium text-gray-900">{h.note || 'Status updated'}</p>
+                                  <p className="text-xs text-gray-500">{new Date(h.assignedAt).toLocaleString()}</p>
+                                </div>
+                              </div>
+                            </div>
                           ))}
-                        </ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Live Dispatcher Tracking Map */}
+                    {(trackerData.ticket.status === 'in_progress' || trackerData.ticket.status === 'triaged' || trackerData.ticket.isDispatched) && (
+                      <div className="mt-6">
+                        <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                          <Truck className="w-5 h-5 text-green-600" /> Live Dispatcher Tracking
+                        </h4>
+                        <DispatcherTrackingMap ticket={trackerData.ticket} statusHistory={trackerData} />
                       </div>
                     )}
                   </div>
@@ -1280,8 +1313,16 @@ const Dashboard = () => {
             {(sidebarTab === 'active' || sidebarTab === 'past') && (
               <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 p-6">
                 <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-2xl font-bold text-gray-900">
-                    {sidebarTab === 'active' ? '🔄 Active Tickets' : '✓ Past Tickets'}
+                  <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    {sidebarTab === 'active' ? (
+                      <>
+                        <Clock className="w-6 h-6 text-blue-600" /> Active Tickets
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-6 h-6 text-green-600" /> Past Tickets
+                      </>
+                    )}
                   </h3>
                 </div>
                 {loadingTickets ? (
@@ -1299,30 +1340,112 @@ const Dashboard = () => {
                 ) : (
                   <ul className="space-y-3">
                     {tickets.map((t) => (
-                      <li key={t.id} className="glass-card bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50 rounded-xl p-5 border border-white/60 hover:shadow-lg transition-all">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex-1">
-                            <p className="font-bold text-gray-900 text-lg mb-1">{t.title || `Ticket ${t.id}`}</p>
-                            <p className="text-sm text-gray-600">{t.summary || t.status}</p>
-                          </div>
+                      <li key={t.id} className={`glass-card backdrop-blur rounded-xl p-5 border hover:shadow-lg transition-all ${
+                        t.isSOS 
+                          ? 'bg-red-50/80 border-red-200 supports-[backdrop-filter]:bg-red-50/60' 
+                          : 'bg-white/60 border-white/60 supports-[backdrop-filter]:bg-white/50'
+                      }`}>
+                        {/* Header with SOS indicator */}
+                        <div className="flex items-start justify-between gap-4 mb-3">
                           <div className="flex items-center gap-3">
-                            <button
-                              className="px-5 py-2 text-sm bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl"
-                              onClick={() => {
-                                setSelectedTicket(t);
-                                setShowTicketStatus(true);
-                              }}
-                            >
-                              View Details
-                            </button>
-                            <span className={`px-3 py-1 rounded-lg text-xs font-bold shadow-sm ${
-                              t.status==='active'
-                                ?'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800 border border-yellow-200'
-                                :'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200'
-                            }`}>
-                              {t.status}
-                            </span>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-bold text-gray-900 text-lg">Ticket {t.ticketId || t.id}</p>
+                                {t.isSOS && (
+                                  <span className="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center gap-1 animate-pulse">
+                                    <AlertTriangle className="w-3 h-3" /> SOS
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600">{t.name || 'Emergency Request'}</p>
+                            </div>
                           </div>
+                          <span className={`px-3 py-1 rounded-lg text-xs font-bold shadow-sm ${
+                            t.status === 'active' ? 'bg-gradient-to-r from-yellow-100 to-amber-100 text-yellow-800 border border-yellow-200' :
+                            t.status === 'matched' ? 'bg-gradient-to-r from-blue-100 to-blue-100 text-blue-800 border border-blue-200' :
+                            t.status === 'triaged' ? 'bg-gradient-to-r from-purple-100 to-purple-100 text-purple-800 border border-purple-200' :
+                            t.status === 'in_progress' ? 'bg-gradient-to-r from-orange-100 to-orange-100 text-orange-800 border border-orange-200' :
+                            t.status === 'fulfilled' ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border border-green-200' :
+                            'bg-gradient-to-r from-gray-100 to-gray-100 text-gray-800 border border-gray-200'
+                          }`}>
+                            {formatStatus(t.status)}
+                          </span>
+                        </div>
+
+                        {/* Help Types */}
+                        {t.helpTypes && t.helpTypes.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                              <Package className="w-3 h-3" /> Help Needed:
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {t.helpTypes.map((type, idx) => (
+                                <span key={idx} className={`px-2 py-1 text-xs font-medium rounded-md ${
+                                  t.isSOS 
+                                    ? 'bg-red-100 text-red-800 border border-red-200' 
+                                    : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                }`}>
+                                  {type}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Medical Needs */}
+                        {t.medicalNeeds && t.medicalNeeds.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                              <Heart className="w-3 h-3 text-red-600" /> Medical Needs:
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {t.medicalNeeds.map((need, idx) => (
+                                <span key={idx} className="px-2 py-1 text-xs font-medium rounded-md bg-red-100 text-red-800 border border-red-200">
+                                  {need}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Location and People Count */}
+                        <div className="mb-3 grid grid-cols-2 gap-3 text-xs">
+                          {t.address && (
+                            <div className="flex items-center gap-1 text-gray-600">
+                              <MapPin className="w-3 h-3" />
+                              <span className="truncate">{t.address}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1 text-gray-600">
+                            <Users className="w-3 h-3" />
+                            <span>{(t.adults || 0) + (t.children || 0) + (t.elderly || 0)} people</span>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        {t.description && (
+                          <div className="mb-3">
+                            <p className="text-xs text-gray-700 bg-gray-50 p-2 rounded-lg italic">
+                              "{t.description.length > 100 ? t.description.substring(0, 100) + '...' : t.description}"
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Action Button */}
+                        <div className="flex justify-end">
+                          <button
+                            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl ${
+                              t.isSOS 
+                                ? 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:from-red-700 hover:to-red-800' 
+                                : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800'
+                            }`}
+                            onClick={() => {
+                              setSelectedTicket(t);
+                              setShowTicketStatus(true);
+                            }}
+                          >
+                            View Full Details
+                          </button>
                         </div>
                       </li>
                     ))}

@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Package, Upload, CheckCircle, Clock, MapPin, Users, FileText } from 'lucide-react';
+import { useState, useEffect, useContext } from 'react';
+import { Package, Upload, CheckCircle, Clock, MapPin, Users, FileText, AlertTriangle, User, Paperclip, Baby, UserCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import API from '../../api/axios';
 import AppHeader from '../common/AppHeader';
+import { AuthContext } from '../../context/AuthContext';
 
 const DispatcherDashboard = () => {
   const [tickets, setTickets] = useState([]);
@@ -9,6 +11,9 @@ const DispatcherDashboard = () => {
   // Removed unused selectedTicket state (not referenced in UI rendering)
   const [uploadFiles, setUploadFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  
+  const { logout, user } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchMyTickets();
@@ -48,8 +53,8 @@ const DispatcherDashboard = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-  alert('Delivery proof uploaded successfully!');
-  setUploadFiles([]);
+      alert('Delivery proof uploaded successfully!');
+      setUploadFiles([]);
       fetchMyTickets();
     } catch (err) {
       console.error('Error uploading proof:', err);
@@ -57,6 +62,11 @@ const DispatcherDashboard = () => {
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   if (loading) {
@@ -76,10 +86,19 @@ const DispatcherDashboard = () => {
       <AppHeader
         title="Dispatcher Dashboard"
         subtitle="View and manage your assigned deliveries"
+        onLogout={handleLogout}
         rightSlot={(
-          <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-lg border border-blue-100">
-            <Package className="w-4 h-4 text-blue-600" />
-            <span className="font-semibold text-blue-900 text-sm">{tickets.length} Assigned</span>
+          <div className="flex items-center space-x-3">
+            {user?.name && (
+              <div className="hidden sm:flex items-center px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-semibold">
+                <User className="w-3 h-3 mr-1" />
+                {user.name}
+              </div>
+            )}
+            <div className="flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-lg border border-blue-100">
+              <Package className="w-4 h-4 text-blue-600" />
+              <span className="font-semibold text-blue-900 text-sm">{tickets.length} Assigned</span>
+            </div>
           </div>
         )}
       />
@@ -104,8 +123,8 @@ const DispatcherDashboard = () => {
                       <div className="flex items-center space-x-2 mb-2">
                         <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">#{ticket.ticketId}</span>
                         {ticket.isSOS && (
-                          <span className="px-3 py-1 bg-gradient-to-r from-red-100 to-rose-100 border border-red-200 text-red-800 text-xs font-bold rounded-full shadow-sm">
-                            🚨 SOS
+                          <span className="px-3 py-1 bg-gradient-to-r from-red-100 to-rose-100 border border-red-200 text-red-800 text-xs font-bold rounded-full shadow-sm flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> SOS
                           </span>
                         )}
                         <span className={`px-3 py-1 text-xs font-semibold rounded-full shadow-sm ${
@@ -145,7 +164,11 @@ const DispatcherDashboard = () => {
                         Location
                       </p>
                       <p className="text-sm text-gray-900">{ticket.address}</p>
-                      {ticket.landmark && <p className="text-xs text-gray-600">📍 {ticket.landmark}</p>}
+                      {ticket.landmark && (
+                        <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                          <MapPin className="w-3 h-3" /> {ticket.landmark}
+                        </p>
+                      )}
                     </div>
                     <div className="bg-white/60 backdrop-blur p-3 rounded-lg">
                       <p className="text-sm font-semibold text-gray-700 mb-2">Help Types</p>
@@ -159,9 +182,17 @@ const DispatcherDashboard = () => {
                     </div>
                     <div className="bg-white/60 backdrop-blur p-3 rounded-lg">
                       <p className="text-sm font-semibold text-gray-700 mb-2">Beneficiaries</p>
-                      <p className="text-sm text-gray-900">
-                        👥 {ticket.adults || 0} Adults | 👶 {ticket.children || 0} Children | 👴 {ticket.elderly || 0} Elderly
-                      </p>
+                      <div className="flex flex-wrap gap-3 text-sm text-gray-900">
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" /> {ticket.adults || 0} Adults
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Baby className="w-3 h-3" /> {ticket.children || 0} Children
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <UserCheck className="w-3 h-3" /> {ticket.elderly || 0} Elderly
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -217,8 +248,8 @@ const DispatcherDashboard = () => {
                             className="block w-full text-sm text-gray-700 file:mr-4 file:py-3 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-600 file:to-indigo-600 file:text-white hover:file:from-blue-700 hover:file:to-indigo-700 file:shadow-lg file:cursor-pointer"
                           />
                           {uploadFiles.length > 0 && (
-                            <p className="text-sm text-blue-600 font-medium mt-2">
-                              📎 {uploadFiles.length} file(s) selected
+                            <p className="text-sm text-blue-600 font-medium mt-2 flex items-center gap-1">
+                              <Paperclip className="w-4 h-4" /> {uploadFiles.length} file(s) selected
                             </p>
                           )}
                         </div>

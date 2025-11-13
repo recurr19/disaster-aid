@@ -81,7 +81,7 @@ exports.updateStatus = async (req, res) => {
   try {
     const { ticketId } = req.params;
     const { status, note } = req.body;
-    const allowed = ['dispatched', 'in_progress', 'completed', 'cancelled'];
+    const allowed = ['triaged', 'in_progress', 'fulfilled', 'closed', 'dispatched', 'completed', 'cancelled'];
     if (!allowed.includes(status)) {
       return res.status(400).json({ success: false, message: 'Invalid status' });
     }

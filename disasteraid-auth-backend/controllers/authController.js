@@ -254,18 +254,49 @@ exports.updateProfile = async (req, res) => {
       const existingNGO = await RegisteredNGO.findOne({ user: user._id });
       
       if (existingNGO) {
-        // Update existing NGO profile
-        Object.keys(ngoProfile).forEach(key => {
-          if (ngoProfile[key] !== undefined) {
-            existingNGO[key] = ngoProfile[key];
+        // Normalize areasOfWork to lowercase strings
+        if (Array.isArray(ngoProfile.areasOfWork)) {
+          existingNGO.areasOfWork = ngoProfile.areasOfWork.map(h => String(h).toLowerCase().trim());
+        }
+
+        // Map coordinates or lat/lng to GeoJSON Point [lng, lat]
+        if (Array.isArray(ngoProfile.coordinates) && ngoProfile.coordinates.length === 2) {
+          existingNGO.locationGeo = { type: 'Point', coordinates: ngoProfile.coordinates };
+        } else if (ngoProfile.lat != null && ngoProfile.lng != null) {
+          const lat = parseFloat(ngoProfile.lat);
+          const lng = parseFloat(ngoProfile.lng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            existingNGO.locationGeo = { type: 'Point', coordinates: [lng, lat] };
           }
-        });
+        }
+
+        // Ensure coverageRadius is a number if provided
+        if (ngoProfile.coverageRadius != null) {
+          const r = parseFloat(ngoProfile.coverageRadius);
+          if (Number.isFinite(r)) existingNGO.coverageRadius = r;
+        }
+
+        // Copy other simple fields
+        ['organizationName','contactPerson','phone','location','resources','availability','manualAddress','dispatcherCount','foodCapacity','medicalTeamCount','vehiclesAvailable','trucks','boats','ambulances','registrationId']
+          .forEach(key => {
+            if (ngoProfile[key] !== undefined) existingNGO[key] = ngoProfile[key];
+          });
         await existingNGO.save();
       } else {
         // Create new NGO profile if it doesn't exist
+        const normalizedAreas = Array.isArray(ngoProfile.areasOfWork)
+          ? ngoProfile.areasOfWork.map(h => String(h).toLowerCase().trim())
+          : [];
+        const locGeo = Array.isArray(ngoProfile.coordinates) && ngoProfile.coordinates.length === 2
+          ? { type: 'Point', coordinates: ngoProfile.coordinates }
+          : (ngoProfile.lat != null && ngoProfile.lng != null
+            ? { type: 'Point', coordinates: [parseFloat(ngoProfile.lng), parseFloat(ngoProfile.lat)] }
+            : undefined);
         await RegisteredNGO.create({
           user: user._id,
-          ...ngoProfile
+          ...ngoProfile,
+          areasOfWork: normalizedAreas,
+          locationGeo: locGeo
         });
       }
     }

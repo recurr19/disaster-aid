@@ -33,11 +33,40 @@ const ticketSchema = new mongoose.Schema({
     mimetype: String,
     path: String,
     size: Number
-  }]
+  }],
+  locationGeo: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      required: false
+    },
+    coordinates: {
+      type: [Number],
+      required: false
+    }
+  },
+  coverageArea: {
+    type: {
+      type: String,
+      enum: ['Polygon', 'MultiPolygon'],
+      required: false
+    },
+    coordinates: {
+      type: Array,
+      required: false
+    }
+  },
+  beneficiaries: {
+    specialNeeds: [{ type: String }],
+    disabilities: [{ type: String }],
+    petsCount: { type: Number, default: 0 }
+  }
 });
 
 // Common query indexes
 ticketSchema.index({ status: 1, createdAt: -1 });
+// Geo index for location point queries
+ticketSchema.index({ locationGeo: '2dsphere' });
 
 // Assignment metadata
 ticketSchema.add({
@@ -65,27 +94,6 @@ ticketSchema.add({
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }]
 });
-
-// Optional GeoJSON location for the ticket (for accurate matching). Stored as [lng, lat]
-ticketSchema.add({
-  locationGeo: {
-    type: {
-      type: String,
-      enum: ['Point'],
-      required: false
-    },
-    coordinates: {
-      type: [Number], // [lng, lat]
-      required: false
-    }
-  }
-});
-
-// 2dsphere index for geo queries (only when coordinates exist)
-ticketSchema.index(
-  { locationGeo: '2dsphere' },
-  { partialFilterExpression: { 'locationGeo.coordinates': { $type: 'array' } } }
-);
 
 const Ticket = mongoose.model("Ticket", ticketSchema);
 

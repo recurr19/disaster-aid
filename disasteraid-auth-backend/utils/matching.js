@@ -16,31 +16,28 @@ async function matchTicket(ticket, options = {}) {
   let ngos = [];
 
   if (coords && Array.isArray(coords) && coords.length === 2) {
-    // Use aggregation to compute distance to each NGO
-    const nearAgg = await RegisteredNGO.aggregate([
-      {
-        $geoNear: {
-          near: { type: 'Point', coordinates: coords },
-          distanceField: 'distance',
-          spherical: true,
-          distanceMultiplier: 0.001, // meters -> kilometers
-          key: 'locationGeo' // explicitly use the locationGeo 2dsphere index
-        }
-      },
-      // mark if within NGO's coverage radius (coverageRadius in km)
-      {
-        $addFields: {
-          withinCoverage: { $lte: ["$distance", "$coverageRadius"] }
-        }
-      },
-      // Keep NGOs that explicitly say they cover this area (withinCoverage true) OR those with a default small coverageRadius
-      {
-        $match: { $or: [{ withinCoverage: true }, { coverageRadius: { $exists: false } }] }
-      },
-      { $limit: 200 }
-    ]).exec();
-
-    ngos = nearAgg;
+    try {
+      const nearAgg = await RegisteredNGO.aggregate([
+        {
+          $geoNear: {
+            near: { type: 'Point', coordinates: coords },
+            distanceField: 'distance',
+            spherical: true,
+            distanceMultiplier: 0.001,
+            key: 'locationGeo'
+          }
+        },
+        { $addFields: { withinCoverage: { $lte: ["$distance", "$coverageRadius"] } } },
+        { $match: { $or: [{ withinCoverage: true }, { coverageRadius: { $exists: false } }] } },
+        { $limit: 200 }
+      ]).exec();
+      ngos = nearAgg;
+    } catch (e) {
+      ngos = await RegisteredNGO.find({ areasOfWork: { $in: requiredHelpTypes } }).limit(200).lean().exec();
+    }
+    if (!ngos || ngos.length === 0) {
+      ngos = await RegisteredNGO.find({ areasOfWork: { $in: requiredHelpTypes } }).limit(200).lean().exec();
+    }
   } else {
     // Fallback: find NGOs whose areasOfWork intersect requested help types, limit by 200
     ngos = await RegisteredNGO.find({ areasOfWork: { $in: requiredHelpTypes } }).limit(200).lean().exec();

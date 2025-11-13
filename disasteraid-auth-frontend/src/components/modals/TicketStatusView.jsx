@@ -1,21 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, AlertTriangle, Clock, CheckCircle2, User, Phone, MapPin, Users, Package, Heart, FileText, Battery, Wifi, Calendar, Truck, CheckCircle } from 'lucide-react';
+import { X, AlertTriangle, Clock, User, Phone, MapPin, Users, Package, Heart, FileText, Battery, Wifi, Calendar, Truck, CheckCircle, Target, ClipboardList, Rocket, CheckSquare, Lock, ArrowRight, Paperclip } from 'lucide-react';
 import { getTrackerStatus } from '../../api/tracker';
+import { connectRealtime } from '../../api/realtime';
+import DispatcherTrackingMap from '../maps/DispatcherTrackingMap';
 
 const TicketStatusView = ({ ticket, onClose }) => {
   const [statusHistory, setStatusHistory] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   const loadStatusHistory = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
       const data = await getTrackerStatus(ticket.ticketId);
       setStatusHistory(data);
     } catch (err) {
       console.error('Failed to load status history:', err);
-      setError('Failed to load status updates');
+      setStatusHistory(null);
     } finally {
       setLoading(false);
     }
@@ -27,13 +27,34 @@ const TicketStatusView = ({ ticket, onClose }) => {
     }
   }, [ticket?.ticketId, loadStatusHistory]);
 
+  // Real-time status updates
+  useEffect(() => {
+    if (!ticket?.ticketId) return;
+    
+    const s = connectRealtime();
+    const channel = `ticket:update:${ticket.ticketId}`;
+    
+    const handleStatusUpdate = (data) => {
+      console.log('Real-time status update:', data);
+      loadStatusHistory(); // Refresh status history when updates come in
+    };
+    
+    s.on(channel, handleStatusUpdate);
+    
+    return () => {
+      s.off(channel, handleStatusUpdate);
+    };
+  }, [ticket?.ticketId, loadStatusHistory]);
+
   const getStatusBadgeClass = (status) => {
     const statusMap = {
       'active': 'bg-yellow-100 text-yellow-800 border-yellow-300',
       'matched': 'bg-blue-100 text-blue-800 border-blue-300',
-      'in-progress': 'bg-purple-100 text-purple-800 border-purple-300',
-      'completed': 'bg-green-100 text-green-800 border-green-300',
+      'triaged': 'bg-purple-100 text-purple-800 border-purple-300',
+      'in_progress': 'bg-orange-100 text-orange-800 border-orange-300',
+      'fulfilled': 'bg-green-100 text-green-800 border-green-300',
       'closed': 'bg-gray-100 text-gray-800 border-gray-300',
+      'completed': 'bg-green-100 text-green-800 border-green-300',
     };
     return statusMap[status] || 'bg-gray-100 text-gray-800 border-gray-300';
   };
@@ -43,14 +64,30 @@ const TicketStatusView = ({ ticket, onClose }) => {
       case 'active':
         return <Clock className="w-4 h-4" />;
       case 'matched':
-      case 'in-progress':
-        return <AlertTriangle className="w-4 h-4" />;
-      case 'completed':
+        return <Target className="w-4 h-4" />;
+      case 'triaged':
+        return <ClipboardList className="w-4 h-4" />;
+      case 'in_progress':
+        return <Rocket className="w-4 h-4" />;
+      case 'fulfilled':
+        return <CheckSquare className="w-4 h-4" />;
       case 'closed':
-        return <CheckCircle2 className="w-4 h-4" />;
+      case 'completed':
+        return <Lock className="w-4 h-4" />;
       default:
         return <Clock className="w-4 h-4" />;
     }
+  };
+
+  const getStatusWorkflowSteps = () => {
+    return [
+      { key: 'active', label: 'Request Created', icon: Clock, color: 'yellow' },
+      { key: 'matched', label: 'NGO Assigned', icon: Target, color: 'blue' },
+      { key: 'triaged', label: 'Triaged', icon: ClipboardList, color: 'purple' },
+      { key: 'in_progress', label: 'In Progress', icon: Rocket, color: 'orange' },
+      { key: 'fulfilled', label: 'Fulfilled', icon: CheckSquare, color: 'green' },
+      { key: 'closed', label: 'Closed', icon: Lock, color: 'gray' }
+    ];
   };
 
   const getBatteryColor = (level) => {
@@ -73,6 +110,11 @@ const TicketStatusView = ({ ticket, onClose }) => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const formatStatus = (status) => {
+    if (!status) return 'Unknown';
+    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const totalPeople = (ticket?.adults || 0) + (ticket?.children || 0) + (ticket?.elderly || 0);
@@ -110,12 +152,12 @@ const TicketStatusView = ({ ticket, onClose }) => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 font-medium">Current Status</p>
-                  <p className="text-xl font-bold text-gray-900 capitalize">{ticket?.status || 'Unknown'}</p>
+                  <p className="text-xl font-bold text-gray-900">{formatStatus(ticket?.status)}</p>
                 </div>
               </div>
-              <span className={`px-4 py-2 rounded-full border text-sm font-semibold ${getStatusBadgeClass(ticket?.status)}`}>
-                {ticket?.isSOS && '🚨 '}
-                {ticket?.status?.toUpperCase()}
+              <span className={`px-4 py-2 rounded-full border text-sm font-semibold flex items-center gap-2 ${getStatusBadgeClass(ticket?.status)}`}>
+                {ticket?.isSOS && <AlertTriangle className="w-4 h-4" />}
+                {formatStatus(ticket?.status)}
               </span>
             </div>
           </div>
@@ -272,43 +314,118 @@ const TicketStatusView = ({ ticket, onClose }) => {
             </div>
           </div>
 
-          {/* Status History */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <Clock className="w-4 h-4" /> Status History
+          {/* Status Workflow Map */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-blue-600" /> Assignment Progress Map
             </h3>
-            {loading ? (
-              <p className="text-sm text-gray-500">Loading status updates...</p>
-            ) : error ? (
-              <p className="text-sm text-red-600">{error}</p>
-            ) : statusHistory?.updates?.length > 0 ? (
-              <div className="space-y-3">
-                {statusHistory.updates.map((update, index) => (
-                  <div key={index} className="flex items-start space-x-3 pb-3 border-b border-gray-200 last:border-0">
-                    <div className={`mt-1 rounded-full p-1 ${getStatusBadgeClass(update.status)}`}>
-                      {getStatusIcon(update.status)}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-900 capitalize">{update.status}</p>
-                        <p className="text-xs text-gray-500">{formatDate(update.timestamp)}</p>
+            
+            {/* Workflow Steps */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between relative">
+                {getStatusWorkflowSteps().map((step, index) => {
+                  const IconComponent = step.icon;
+                  const isCompleted = statusHistory?.ticket?.status === step.key || 
+                    (statusHistory?.ticket?.assignmentHistory || []).some(h => h.note?.toLowerCase().includes(step.key));
+                  const isCurrent = ticket?.status === step.key;
+                  
+                  return (
+                    <div key={step.key} className="flex flex-col items-center relative z-10">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all ${
+                        isCurrent 
+                          ? `bg-${step.color}-500 border-${step.color}-500 text-white shadow-lg scale-110`
+                          : isCompleted 
+                            ? `bg-${step.color}-100 border-${step.color}-400 text-${step.color}-700`
+                            : 'bg-gray-100 border-gray-300 text-gray-400'
+                      }`}>
+                        <IconComponent className="w-6 h-6" />
                       </div>
-                      {update.note && (
-                        <p className="text-sm text-gray-600 mt-1">{update.note}</p>
+                      <div className="mt-2 text-center">
+                        <p className={`text-xs font-medium ${
+                          isCurrent ? `text-${step.color}-700 font-bold` : 
+                          isCompleted ? `text-${step.color}-600` : 'text-gray-500'
+                        }`}>
+                          {step.label}
+                        </p>
+                      </div>
+                      {index < getStatusWorkflowSteps().length - 1 && (
+                        <ArrowRight className={`absolute top-5 left-16 w-4 h-4 ${
+                          isCompleted ? 'text-blue-400' : 'text-gray-300'
+                        }`} />
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            ) : (
-              <p className="text-sm text-gray-500">No status updates available</p>
+            </div>
+
+            {/* Current Status Banner */}
+            <div className={`p-4 rounded-lg border-2 ${getStatusBadgeClass(ticket?.status)} border-dashed`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white rounded-full p-2">
+                    {getStatusIcon(ticket?.status)}
+                  </div>
+                  <div>
+                    <p className="font-bold text-lg">{formatStatus(ticket?.status)}</p>
+                    <p className="text-sm opacity-80">Current Status</p>
+                  </div>
+                </div>
+                {statusHistory?.ticket?.assignedTo && (
+                  <div className="text-right">
+                    <p className="font-semibold">{statusHistory.ticket.assignedTo.organizationName}</p>
+                    <p className="text-sm opacity-80">Assigned NGO</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Status History Timeline */}
+            {statusHistory?.ticket?.assignmentHistory?.length > 0 && (
+              <div className="mt-6">
+                <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Clock className="w-4 h-4" /> Detailed Timeline
+                </h4>
+                <div className="space-y-3 max-h-48 overflow-y-auto">
+                  {statusHistory.ticket.assignmentHistory.map((update, index) => (
+                    <div key={index} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                      <div className={`mt-0.5 rounded-full p-2 ${getStatusBadgeClass(ticket?.status)}`}>
+                        <Clock className="w-3 h-3" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-gray-900">{update.note || 'Status updated'}</p>
+                          <p className="text-xs text-gray-500">{formatDate(update.assignedAt)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {loading && (
+              <div className="text-center py-4">
+                <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent"></div>
+                <p className="text-sm text-blue-600 mt-2">Updating status...</p>
+              </div>
             )}
           </div>
 
+          {/* Live Dispatcher Tracking Map */}
+          {(ticket?.status === 'in_progress' || ticket?.status === 'triaged' || ticket?.isDispatched) && (
+            <div className="mt-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Truck className="w-5 h-5 text-green-600" /> Live Dispatcher Tracking
+              </h3>
+              <DispatcherTrackingMap ticket={ticket} statusHistory={statusHistory} />
+            </div>
+          )}
+
           {ticket?.filesCount > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800">
-                📎 <strong>{ticket.deliveryProofCount || ticket.filesCount}</strong> file{(ticket.deliveryProofCount || ticket.filesCount) !== 1 ? 's' : ''} related to this ticket
+              <p className="text-sm text-blue-800 flex items-center gap-2">
+                <Paperclip className="w-4 h-4" /> <strong>{ticket.deliveryProofCount || ticket.filesCount}</strong> file{(ticket.deliveryProofCount || ticket.filesCount) !== 1 ? 's' : ''} related to this ticket
               </p>
             </div>
           )}

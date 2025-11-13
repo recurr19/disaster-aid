@@ -1,6 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2 } from "lucide-react";
+import { Plus, Edit2, User, Package, Truck, Bell, MapPin, Target, Settings, RefreshCw, Users, Mail, Key, Activity, FileText, Shield, CheckCircle, X } from "lucide-react";
 import NGOResourceForm from "./NGOResourceForm";
 import MatchedCitizensList from "./MatchedCitizensList";
 import ActiveRequestsTracker from "./ActiveRequestsTracker";
@@ -48,6 +48,7 @@ export default function NGODashboard() {
   const [dispatchers, setDispatchers] = useState([]);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generatedCredentials, setGeneratedCredentials] = useState(null);
+  const [dispatchSuccess, setDispatchSuccess] = useState(null);
 
   // Load NGO profile and matches
   useEffect(() => {
@@ -190,9 +191,9 @@ export default function NGODashboard() {
     }
   };
 
-  const handleStatusUpdate = async (ticketId, newStatus) => {
+  const handleStatusUpdate = async (ticketId, newStatus, note) => {
     try {
-      await updateTicketStatus(ticketId, newStatus);
+      await updateTicketStatus(ticketId, newStatus, note);
       setActiveRequests(
         activeRequests.map((req) =>
           req.id === ticketId ? { ...req, status: newStatus } : req
@@ -232,18 +233,38 @@ export default function NGODashboard() {
 
   const handleDispatchTicket = async (ticketObjectId, dispatcherId) => {
     if (!ticketObjectId || !dispatcherId) {
-      alert('Invalid ticket or dispatcher');
+      console.error('Invalid ticket or dispatcher:', { ticketObjectId, dispatcherId });
       return;
     }
 
     try {
+      console.log('Dispatching ticket:', ticketObjectId, 'to dispatcher:', dispatcherId);
       await assignTicketToDispatcher(ticketObjectId, dispatcherId);
-      alert('Ticket dispatched successfully!');
-      // Reload data
-      window.location.reload();
+      
+      // Update the activeRequests state to reflect the dispatch
+      setActiveRequests(prevRequests => 
+        prevRequests.map(request => 
+          (request.ticketObjectId === ticketObjectId || request.id === ticketObjectId)
+            ? { 
+                ...request, 
+                isDispatched: true, 
+                dispatchedTo: dispatchers.find(d => d._id === dispatcherId) 
+              }
+            : request
+        )
+      );
+      
+      // Show success notification
+      const dispatcherName = dispatchers.find(d => d._id === dispatcherId)?.name || 'Dispatcher';
+      setDispatchSuccess(`Ticket successfully assigned to ${dispatcherName}`);
+      setTimeout(() => setDispatchSuccess(null), 5000); // Clear after 5 seconds
+      
+      console.log('Ticket dispatched successfully');
     } catch (err) {
       console.error('Dispatch failed:', err);
-      alert(err.response?.data?.message || 'Failed to dispatch ticket');
+      // Show a more user-friendly error without alert
+      const errorMessage = err.response?.data?.message || 'Failed to dispatch ticket';
+      console.error('Dispatch error:', errorMessage);
     }
   };
 
@@ -279,7 +300,7 @@ export default function NGODashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
 
       {/* Header */}
       <AppHeader
@@ -287,8 +308,8 @@ export default function NGODashboard() {
         subtitle="Manage resources, matches, and missions"
         onLogout={handleLogout}
         rightSlot={user?.name ? (
-          <div className="hidden sm:flex items-center px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-semibold">
-            <span className="mr-1">👤</span>
+          <div className="hidden sm:flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100 text-xs font-semibold">
+            <User className="w-3 h-3 mr-1" />
             {user.name}
           </div>
         ) : null}
@@ -297,40 +318,40 @@ export default function NGODashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-          <div className="glass-card bg-gradient-to-br from-blue-50/80 to-blue-100/50 backdrop-blur supports-[backdrop-filter]:bg-blue-50/60 rounded-xl p-5 border border-blue-200 shadow-lg hover:shadow-xl transition-all">
-            <p className="text-blue-700 text-sm font-semibold mb-1">Food Capacity</p>
-            <p className="text-2xl font-bold text-blue-900">{stats.foodCapacity}</p>
-            <p className="text-xs text-blue-600 mt-1">meals/day</p>
+          <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl p-5 border border-white/60 shadow-xl hover:shadow-2xl transition-all">
+            <p className="text-blue-600 text-sm font-semibold mb-1">Food Capacity</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.foodCapacity}</p>
+            <p className="text-xs text-gray-600 mt-1">meals/day</p>
           </div>
 
-          <div className="glass-card bg-gradient-to-br from-green-50/80 to-green-100/50 backdrop-blur supports-[backdrop-filter]:bg-green-50/60 rounded-xl p-5 border border-green-200 shadow-lg hover:shadow-xl transition-all">
-            <p className="text-green-700 text-sm font-semibold mb-1">Medical Teams</p>
-            <p className="text-2xl font-bold text-green-900">{stats.medicalTeams}</p>
-            <p className="text-xs text-green-600 mt-1">available</p>
+          <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl p-5 border border-white/60 shadow-xl hover:shadow-2xl transition-all">
+            <p className="text-green-600 text-sm font-semibold mb-1">Medical Teams</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.medicalTeams}</p>
+            <p className="text-xs text-gray-600 mt-1">available</p>
           </div>
 
-          <div className="glass-card bg-gradient-to-br from-purple-50/80 to-purple-100/50 backdrop-blur supports-[backdrop-filter]:bg-purple-50/60 rounded-xl p-5 border border-purple-200 shadow-lg hover:shadow-xl transition-all">
-            <p className="text-purple-700 text-sm font-semibold mb-1">Vehicles</p>
-            <p className="text-2xl font-bold text-purple-900">{stats.vehicles}</p>
-            <p className="text-xs text-purple-600 mt-1">total fleet</p>
+          <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl p-5 border border-white/60 shadow-xl hover:shadow-2xl transition-all">
+            <p className="text-purple-600 text-sm font-semibold mb-1">Vehicles</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.vehicles}</p>
+            <p className="text-xs text-gray-600 mt-1">total fleet</p>
           </div>
 
-          <div className="glass-card bg-gradient-to-br from-orange-50/80 to-orange-100/50 backdrop-blur supports-[backdrop-filter]:bg-orange-50/60 rounded-xl p-5 border border-orange-200 shadow-lg hover:shadow-xl transition-all">
-            <p className="text-orange-700 text-sm font-semibold mb-1">Coverage</p>
-            <p className="text-2xl font-bold text-orange-900">{stats.coverageRadius}</p>
-            <p className="text-xs text-orange-600 mt-1">km radius</p>
+          <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl p-5 border border-white/60 shadow-xl hover:shadow-2xl transition-all">
+            <p className="text-orange-600 text-sm font-semibold mb-1">Coverage</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.coverageRadius}</p>
+            <p className="text-xs text-gray-600 mt-1">km radius</p>
           </div>
 
-          <div className="glass-card bg-gradient-to-br from-yellow-50/80 to-amber-100/50 backdrop-blur supports-[backdrop-filter]:bg-yellow-50/60 rounded-xl p-5 border border-yellow-200 shadow-lg hover:shadow-xl transition-all">
-            <p className="text-yellow-700 text-sm font-semibold mb-1">Pending</p>
-            <p className="text-2xl font-bold text-yellow-900">{stats.pendingMatches}</p>
-            <p className="text-xs text-yellow-600 mt-1">matches</p>
+          <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl p-5 border border-white/60 shadow-xl hover:shadow-2xl transition-all">
+            <p className="text-yellow-600 text-sm font-semibold mb-1">Pending</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.pendingMatches}</p>
+            <p className="text-xs text-gray-600 mt-1">matches</p>
           </div>
 
-          <div className="glass-card bg-gradient-to-br from-rose-50/80 to-red-100/50 backdrop-blur supports-[backdrop-filter]:bg-rose-50/60 rounded-xl p-5 border border-rose-200 shadow-lg hover:shadow-xl transition-all">
-            <p className="text-rose-700 text-sm font-semibold mb-1">Active</p>
-            <p className="text-2xl font-bold text-rose-900">{stats.activeAssignments}</p>
-            <p className="text-xs text-rose-600 mt-1">missions</p>
+          <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl p-5 border border-white/60 shadow-xl hover:shadow-2xl transition-all">
+            <p className="text-red-600 text-sm font-semibold mb-1">Active</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.activeAssignments}</p>
+            <p className="text-xs text-gray-600 mt-1">missions</p>
           </div>
         </div>
 
@@ -338,22 +359,22 @@ export default function NGODashboard() {
         <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 overflow-hidden mb-6">
           <div className="flex overflow-x-auto">
             {[
-              { key: "profile", label: "Profile", icon: "👤" },
-              { key: "resources", label: "Resources", icon: "📦" },
-              { key: "dispatchers", label: "Dispatchers", icon: "🚚" },
-              { key: "matches", label: "Matches", icon: "🔔" },
-              { key: "tracking", label: "Tracking", icon: "📍" }
+              { key: "profile", label: "Profile", icon: User },
+              { key: "resources", label: "Resources", icon: Package },
+              { key: "dispatchers", label: "Dispatchers", icon: Truck },
+              { key: "matches", label: "Matches", icon: Bell },
+              { key: "tracking", label: "Tracking", icon: MapPin }
             ].map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 px-6 py-4 text-center font-semibold border-b-2 transition-all whitespace-nowrap ${
+                className={`flex-1 px-6 py-4 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                   activeTab === tab.key
-                    ? 'border-indigo-600 text-indigo-600 bg-gradient-to-t from-indigo-50/50 to-transparent'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50/50'
                 }`}
               >
-                <span className="mr-2">{tab.icon}</span>
+                <tab.icon className="w-4 h-4" />
                 {tab.label}
               </button>
             ))}
@@ -366,7 +387,7 @@ export default function NGODashboard() {
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-2xl font-bold text-gray-900">Organization Profile</h3>
             <button 
-              className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-lg hover:shadow-xl" 
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl" 
               onClick={() => setEditingProfile(!editingProfile)}
             >
               <Edit2 size={16} /> {editingProfile ? 'Cancel' : 'Edit'}
@@ -375,9 +396,9 @@ export default function NGODashboard() {
 
           {!editingProfile ? (
             <div className="space-y-6">
-              <div className="glass-card bg-gradient-to-br from-blue-50/50 to-indigo-50/50 backdrop-blur supports-[backdrop-filter]:bg-blue-50/40 rounded-xl p-5 border border-blue-200">
-                <h4 className="font-bold text-lg mb-4 text-blue-900 flex items-center gap-2">
-                  📋 Basic Information
+              <div className="glass-card bg-white/60 backdrop-blur supports-[backdrop-filter]:bg-white/50 rounded-xl p-5 border border-gray-200">
+                <h4 className="font-bold text-lg mb-4 text-gray-900 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-600" /> Basic Information
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-white/60 backdrop-blur p-3 rounded-lg">
@@ -409,7 +430,7 @@ export default function NGODashboard() {
 
               <div className="glass-card bg-gradient-to-br from-green-50/50 to-emerald-50/50 backdrop-blur supports-[backdrop-filter]:bg-green-50/40 rounded-xl p-5 border border-green-200">
                 <h4 className="font-bold text-lg mb-4 text-green-900 flex items-center gap-2">
-                  🎯 Areas of Work
+                  <Target className="w-5 h-5" /> Areas of Work
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {ngoProfile.areasOfWork?.length > 0 ? (
@@ -426,7 +447,7 @@ export default function NGODashboard() {
               
               <div className="glass-card bg-gradient-to-br from-purple-50/50 to-pink-50/50 backdrop-blur supports-[backdrop-filter]:bg-purple-50/40 rounded-xl p-5 border border-purple-200">
                 <h4 className="font-bold text-lg mb-4 text-purple-900 flex items-center gap-2">
-                  ⚙️ Operational Capacity & Resources
+                  <Settings className="w-5 h-5" /> Operational Capacity & Resources
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="glass-card bg-gradient-to-br from-orange-100 to-orange-50 backdrop-blur p-4 rounded-xl border border-orange-200 shadow-md">
@@ -458,7 +479,7 @@ export default function NGODashboard() {
 
               <div className="glass-card bg-gradient-to-br from-indigo-50/50 to-blue-50/50 backdrop-blur supports-[backdrop-filter]:bg-indigo-50/40 rounded-xl p-5 border border-indigo-200">
                 <h4 className="font-bold text-lg mb-4 text-indigo-900 flex items-center gap-2">
-                  📦 Additional Resources & Equipment
+                  <Package className="w-5 h-5" /> Additional Resources & Equipment
                 </h4>
                 <div className="bg-white/60 backdrop-blur p-4 rounded-lg">
                   <p className="text-gray-700">{ngoProfile.resources || 'No additional resources specified'}</p>
@@ -568,19 +589,22 @@ export default function NGODashboard() {
 
       {/* Resources Management */}
       {activeTab === "resources" && (
-        <div>
-          <div className="mb-4">
-            <h3 className="text-xl font-bold mb-2">Resource Inventory</h3>
-            <p className="text-gray-600 mb-4">Manage additional resources, supplies, and equipment available for disaster relief operations.</p>
+        <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                <Package className="w-7 h-7 text-blue-600" />
+                Resource Inventory
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">Manage additional resources, supplies, and equipment available for disaster relief operations</p>
+            </div>
+            <button 
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl" 
+              onClick={() => setShowResourceForm(!showResourceForm)}
+            >
+              <Plus className="w-4 h-4" /> Add New Resource
+            </button>
           </div>
-          
-          <button 
-            className="button-primary" 
-            style={{ display: "flex", gap: "8px", marginBottom: "1.5rem" }} 
-            onClick={() => setShowResourceForm(!showResourceForm)}
-          >
-            <Plus size={18} /> Add New Resource
-          </button>
 
           {showResourceForm && (
             <NGOResourceForm
@@ -621,93 +645,184 @@ export default function NGODashboard() {
 
       {/* Dispatchers Tab */}
       {activeTab === "dispatchers" && (
-        <div>
-          <div className="card">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-2xl font-bold">Dispatcher Management</h3>
-              <div className="flex gap-2">
-                {dispatchers.length === 0 && (
-                  <button 
-                    onClick={() => setShowGenerateModal(true)}
-                    className="button-primary flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Generate Dispatchers
-                  </button>
-                )}
+        <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                <Users className="w-7 h-7 text-blue-600" />
+                Dispatcher Management
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">Manage your field team dispatchers and credentials</p>
+            </div>
+            <div className="flex gap-3">
+              {dispatchers.length === 0 && (
                 <button 
-                  onClick={() => window.location.reload()}
-                  className="button-secondary text-sm"
+                  onClick={() => setShowGenerateModal(true)}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
                 >
-                  Refresh
+                  <Plus className="w-4 h-4" />
+                  Generate Dispatchers
                 </button>
+              )}
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-white/80 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
+            </div>
+          </div>
+          
+          {dispatchers.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="p-4 bg-gradient-to-br from-indigo-100 to-blue-100 rounded-2xl inline-block mb-6">
+                <Truck className="w-16 h-16 text-indigo-600" />
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">No Dispatchers Yet</h4>
+              <p className="text-gray-600 mb-4 max-w-md mx-auto">Create dispatcher accounts to manage field operations and ticket assignments efficiently.</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-lg mx-auto">
+                <p className="text-sm text-blue-800 font-medium mb-2 flex items-center gap-2">
+                  <FileText className="w-4 h-4" /> Getting Started
+                </p>
+                <p className="text-xs text-blue-700">Dispatchers can also be created during NGO registration for immediate setup.</p>
               </div>
             </div>
-            
-            {dispatchers.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-600 mb-4">No dispatchers registered yet.</p>
-                <p className="text-sm text-gray-500 mb-4">Click "Generate Dispatchers" to create dispatcher accounts.</p>
-                <p className="text-xs text-gray-400">Note: Dispatchers can also be created during NGO registration.</p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm text-gray-600 mb-4">
-                  Total Dispatchers: <strong>{dispatchers.length}</strong>
-                </p>
-                
-                <div className="overflow-x-auto">
-                  <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Email</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Password</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Assigned Tickets</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {dispatchers.map((dispatcher) => (
-                        <tr key={dispatcher._id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-mono text-blue-600">{dispatcher.dispatcherId}</td>
-                          <td className="px-4 py-3 text-sm">{dispatcher.name}</td>
-                          <td className="px-4 py-3 text-sm font-mono">{dispatcher.email}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <code className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
-                              {dispatcher.generatedPassword}
-                            </code>
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                              dispatcher.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {dispatcher.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center">
-                            {dispatcher.assignedTickets?.length || 0}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+          ) : (
+            <div className="space-y-6">
+              {/* Stats Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Users className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-blue-600 font-medium">Total Dispatchers</p>
+                      <p className="text-2xl font-bold text-blue-900">{dispatchers.length}</p>
+                    </div>
+                  </div>
                 </div>
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <Activity className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-green-600 font-medium">Active</p>
+                      <p className="text-2xl font-bold text-green-900">{dispatchers.filter(d => d.isActive).length}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-200">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <FileText className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-orange-600 font-medium">Total Assignments</p>
+                      <p className="text-2xl font-bold text-orange-900">{dispatchers.reduce((sum, d) => sum + (d.assignedTickets?.length || 0), 0)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
-                  <h4 className="font-semibold text-blue-900 mb-2">📋 Important Instructions</h4>
-                  <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-                    <li>Share these credentials securely with your dispatchers</li>
-                    <li>Dispatchers can login using their email and password</li>
-                    <li>They will see only tickets assigned to them</li>
-                    <li>Dispatchers can upload delivery proof but cannot close tickets</li>
-                    <li>Only NGO admins can close completed tickets</li>
-                  </ul>
+              {/* Dispatchers Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {dispatchers.map((dispatcher) => (
+                  <div key={dispatcher._id} className="bg-white/60 backdrop-blur rounded-xl p-5 border border-gray-200 hover:shadow-lg transition-all">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 rounded-lg">
+                          <User className="w-5 h-5 text-indigo-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-gray-900">{dispatcher.name}</h4>
+                          <p className="text-xs text-gray-500 font-mono">ID: {dispatcher.dispatcherId}</p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+                        dispatcher.isActive ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-gray-100 text-gray-800 border border-gray-200'
+                      }`}>
+                        <Activity className="w-3 h-3" />
+                        {dispatcher.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Mail className="w-3 h-3 text-gray-500" />
+                          <span className="text-xs text-gray-500 font-medium">Email</span>
+                        </div>
+                        <p className="text-sm font-mono text-gray-900">{dispatcher.email}</p>
+                      </div>
+
+                      <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Key className="w-3 h-3 text-yellow-600" />
+                          <span className="text-xs text-yellow-600 font-medium">Generated Password</span>
+                        </div>
+                        <code className="text-sm font-mono text-yellow-800 bg-yellow-100 px-2 py-1 rounded">
+                          {dispatcher.generatedPassword}
+                        </code>
+                      </div>
+
+                      <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <FileText className="w-3 h-3 text-blue-600" />
+                          <span className="text-xs text-blue-600 font-medium">Assigned Tickets</span>
+                        </div>
+                        <p className="text-lg font-bold text-blue-900">{dispatcher.assignedTickets?.length || 0}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Shield className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-blue-900 mb-3">Security & Usage Guidelines</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <ul className="space-y-2 text-sm text-blue-800">
+                        <li className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+                          Share credentials securely with dispatchers
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+                          Dispatchers login with email and password
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+                          They see only assigned tickets
+                        </li>
+                      </ul>
+                      <ul className="space-y-2 text-sm text-blue-800">
+                        <li className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+                          Can upload delivery proof
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+                          Cannot close tickets independently
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+                          Only NGO admins close completed tickets
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -722,12 +837,33 @@ export default function NGODashboard() {
 
       {/* Tracking */}
       {activeTab === "tracking" && (
-        <ActiveRequestsTracker
-          requests={activeRequests}
-          onStatusUpdate={handleStatusUpdate}
-          onDispatch={handleDispatchTicket}
-          dispatchers={dispatchers}
-        />
+        <div className="space-y-4">
+          {/* Success Notification */}
+          {dispatchSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-green-800 font-medium">{dispatchSuccess}</p>
+                <p className="text-green-600 text-sm">The dispatcher will receive the assignment notification</p>
+              </div>
+              <button 
+                onClick={() => setDispatchSuccess(null)}
+                className="text-green-600 hover:text-green-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          
+          <ActiveRequestsTracker
+            requests={activeRequests}
+            onStatusUpdate={handleStatusUpdate}
+            onDispatch={handleDispatchTicket}
+            dispatchers={dispatchers}
+          />
+        </div>
       )}
 
       {/* Generate Dispatchers Modal */}

@@ -75,8 +75,9 @@ exports.acceptAssignment = async (req, res) => {
     (async () => {
       try {
         await Notify.ngoAccepted(ticket, assignment.ngo);
-      Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'accepted', ngoId: String(assignment.ngo) });
-      Realtime.emit('assignment:accepted', { ticketId: ticket.ticketId, ngoId: String(assignment.ngo) });
+        Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'accepted', ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm, etaMinutes: assignment.etaMinutes });
+        Realtime.emit('assignment:accepted', { ticketId: ticket.ticketId, ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm, etaMinutes: assignment.etaMinutes });
+      Realtime.emit('assignment:accepted', { ticketId: ticket.ticketId, ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm ?? null, etaMinutes: assignment.etaMinutes ?? null });
       } catch (e) {
         console.error('Notify ngoAccepted failed:', e);
       }

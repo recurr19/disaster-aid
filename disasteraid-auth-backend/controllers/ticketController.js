@@ -79,6 +79,15 @@ const submitHelpRequest = async (req, res) => {
       }
     }
 
+    if (data.coverageArea) {
+      try {
+        const cov = typeof data.coverageArea === 'string' ? JSON.parse(data.coverageArea) : data.coverageArea;
+        if (cov && (cov.type === 'Polygon' || cov.type === 'MultiPolygon') && cov.coordinates) {
+          ticketPayload.coverageArea = cov;
+        }
+      } catch (_) {}
+    }
+
     // Clustering: compute coarse clusterId by rounding coords to ~300m grid + helpTypes
     const coordsUsed = ticketPayload.locationGeo?.coordinates;
     if (coordsUsed && coordsUsed.length === 2) {
@@ -187,6 +196,19 @@ const submitHelpRequest = async (req, res) => {
     res.status(500).json({
       error: "Failed to submit help request. Please try again later.",
     });
+  }
+};
+
+// Public (no-auth) submission wrapper: sets channel and clears user
+const submitPublicHelpRequest = async (req, res) => {
+  try {
+    req.user = null;
+    if (!req.body) req.body = {};
+    if (!req.body.channel) req.body.channel = 'web';
+    return await submitHelpRequest(req, res);
+  } catch (e) {
+    console.error('submitPublicHelpRequest error:', e);
+    return res.status(500).json({ error: 'Failed to submit public help request' });
   }
 };
 
@@ -341,4 +363,4 @@ const assignBestNGO = async (req, res) => {
   }
 };
 
-module.exports = { submitHelpRequest, getTickets, getMatchesForTicket, assignBestNGO };
+module.exports = { submitHelpRequest, getTickets, getMatchesForTicket, assignBestNGO, submitPublicHelpRequest };
