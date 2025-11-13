@@ -60,21 +60,32 @@ const AssignmentsList = () => {
               {tickets.map(f => {
                 const p = f.properties || {};
                 const assigned = p.assignedTo || null;
+                const isOpen = selectedTicketId === p.ticketId;
                 return (
-                  <tr key={p.ticketId} className="border-t hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedTicketId(prev => prev === p.ticketId ? null : p.ticketId)}>
-                    <td className="py-2 font-medium text-blue-700 underline">{p.ticketId}</td>
-                    <td className="py-2 text-xs text-gray-600">{p.createdAt ? new Date(p.createdAt).toLocaleString() : '-'}</td>
-                    <td className="py-2">{(p.helpTypes || []).join(', ') || '-'}</td>
-                    <td className="py-2">{p.status || 'unknown'}</td>
-                    <td className="py-2">{assigned ? <div><div className="font-medium">{assigned.organizationName}</div><div className="text-xs text-gray-500">{assigned.phone} • {assigned.location}</div></div> : <span className="text-gray-500">Unassigned</span>}</td>
-                  </tr>
+                  <React.Fragment key={p.ticketId}>
+                    <tr className={`border-t hover:bg-gray-50 cursor-pointer ${isOpen ? 'bg-gray-50' : ''}`} onClick={() => setSelectedTicketId(prev => prev === p.ticketId ? null : p.ticketId)}>
+                      <td className="py-2 font-medium text-blue-700 underline">{p.ticketId}</td>
+                      <td className="py-2 text-xs text-gray-600">{p.createdAt ? new Date(p.createdAt).toLocaleString() : '-'}</td>
+                      <td className="py-2">{(p.helpTypes || []).join(', ') || '-'}</td>
+                      <td className="py-2">{p.status || 'unknown'}</td>
+                      <td className="py-2">{assigned ? <div><div className="font-medium">{assigned.organizationName}</div><div className="text-xs text-gray-500">{assigned.phone} • {assigned.location}</div></div> : <span className="text-gray-500">Unassigned</span>}</td>
+                    </tr>
+
+                    {/* Inline detail row that expands/collapses */}
+                    <tr className={`detail-row ${isOpen ? 'open' : ''}`}>
+                      <td colSpan={5} className="p-0 border-0">
+                        <div className="detail-container">
+                          {isOpen && <TicketDetail ticketId={p.ticketId} onClose={() => setSelectedTicketId(null)} />}
+                        </div>
+                      </td>
+                    </tr>
+                  </React.Fragment>
                 );
               })}
             </tbody>
           </table>
         </div>
       )}
-      {selectedTicketId && <TicketDetail ticketId={selectedTicketId} onClose={() => setSelectedTicketId(null)} />}
     </div>
   );
 };

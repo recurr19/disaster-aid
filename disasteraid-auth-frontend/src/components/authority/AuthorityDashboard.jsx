@@ -36,7 +36,8 @@ const AuthorityDashboard = ({ user, onLogout }) => {
       if (res.data?.success) {
         const ticketsFC = res.data.tickets || { type: 'FeatureCollection', features: [] };
         const overlays = res.data.overlays || {};
-        setMapData({ tickets: ticketsFC, overlays });
+        const newMapData = { tickets: ticketsFC, overlays };
+        setMapData(newMapData);
         const points = (ticketsFC.features || []).map(f => {
           const coords = f.geometry?.coordinates;
           if (!coords || coords.length < 2) return null;
@@ -45,6 +46,7 @@ const AuthorityDashboard = ({ user, onLogout }) => {
         }).filter(Boolean);
         setHeatPoints(points);
         setSOSCount((ticketsFC.features || []).filter(f => f.properties?.isSOS).length);
+        return newMapData;
       }
     } catch (e) {
       console.error('AuthorityDashboard: map load failed', e);
@@ -148,7 +150,28 @@ const AuthorityDashboard = ({ user, onLogout }) => {
             }
           })();
         }} />}
-        {activeTab === 'shelters' && <ShelterManagement overlays={(mapData && mapData.overlays) ? mapData.overlays : null} onOverlayChange={refreshMapData} />}
+        {activeTab === 'shelters' && (
+          <ShelterManagement
+            overlays={(mapData && mapData.overlays) ? mapData.overlays : null}
+            onOverlayChange={refreshMapData}
+            onLocalAddOverlay={(overlay) => {
+              // merge overlay into parent mapData immediately for instant visibility
+              setMapData(prev => {
+                try {
+                  const next = prev ? { ...prev } : { tickets: { type: 'FeatureCollection', features: [] }, overlays: {} };
+                  next.overlays = { ...(next.overlays || {}) };
+                  const key = overlay.type === 'blockedRoute' ? 'blockedRoutes' : (overlay.type === 'medicalCamp' ? 'medicalCamps' : (overlay.type === 'depot' ? 'depots' : (overlay.type === 'shelter' ? 'shelters' : 'advisories')));
+                  next.overlays[key] = Array.isArray(next.overlays[key]) ? [...next.overlays[key]] : [];
+                  // avoid duplicates
+                  if (!next.overlays[key].some(o => o._id === overlay._id)) next.overlays[key].push(overlay);
+                  return next;
+                } catch (e) {
+                  return prev;
+                }
+              });
+            }}
+          />
+        )}
         {activeTab === 'resources' && <ResourceAllocation />}
         {activeTab === 'heatmap' && <Heatmap points={heatPoints} overlays={(mapData && mapData.overlays) ? mapData.overlays : null} />}
         {activeTab === 'briefs' && <AutomatedBriefs mapData={mapData} />}

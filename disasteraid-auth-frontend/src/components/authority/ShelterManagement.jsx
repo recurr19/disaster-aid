@@ -3,7 +3,7 @@ import './authority.css';
 import { listOverlays, createOverlay, deleteOverlay } from '../../api/authority';
 import { MapContainer, TileLayer, Marker, CircleMarker, Polygon, Popup, useMapEvents, useMap } from 'react-leaflet';
 
-const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
+const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAddOverlay = null }) => {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({
     type: 'shelter',
@@ -22,6 +22,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
   const [quickAddMode, setQuickAddMode] = useState(false); // when true, clicking map auto-adds overlay
   const [areaFocused, setAreaFocused] = useState(false);
   const [areaBounds, setAreaBounds] = useState(null); // [[south,west],[north,east]] or null
+  const [areaFocusId, setAreaFocusId] = useState(null); // unique id for each programmatic focus action
   const [focusedMarker, setFocusedMarker] = useState(null); // [lat, lng]
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -72,17 +73,20 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
   const quickAddOverlay = useCallback(async (lat, lng) => {
     const currentForm = formRef.current;
     if (!currentForm.type || currentForm.type === 'blockedRoute') return; // blockedRoute needs polygon drawing
+    // Require name to be provided explicitly for quick add
+    if (!currentForm.name || !currentForm.name.trim()) {
+      setUiWarning('Name is required for creating an overlay. Please enter a name and try again.');
+      return;
+    }
     
     try {
       setLoading(true);
       const geometry = { type: 'Point', coordinates: [Number(lng), Number(lat)] };
       
       // Generate default name if not provided (backend requires name)
-      const defaultName = currentForm.name && currentForm.name.trim() ? currentForm.name : `${currentForm.type} at ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-
       const payload = {
         type: currentForm.type,
-        name: defaultName,
+        name: currentForm.name.trim(),
         status: currentForm.status || 'open',
         capacity: currentForm.capacity ? Number(currentForm.capacity) : undefined,
         properties: {
@@ -112,6 +116,8 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
       }
       if (newItem) {
         setItems(prev => [...prev, newItem]);
+        // Inform parent to add overlay locally for immediate map/heatmap reflection
+        try { if (onLocalAddOverlay) onLocalAddOverlay(newItem); } catch (e) { /* ignore */ }
       }
       
       // Keep form type and status, but clear location-specific fields
@@ -120,17 +126,50 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
       
       // Notify parent to refresh - it will update both maps efficiently
       if (onOverlayChange) {
-        // Don't await - let it run in background while UI updates instantly
-        onOverlayChange().then(() => {
-          // Refresh local state after parent updates to ensure sync
-          load();
-        }).catch(() => {
-          // If parent refresh fails, still refresh local state
-          load();
-        });
+        try {
+          if (payload.type === 'blockedRoute') {
+            // Wait for parent to refresh and use returned mapData to sync local items
+            const updated = await onOverlayChange();
+            if (updated && updated.overlays) {
+              // build flat items list from overlays so the local map updates immediately
+              const list = [];
+              ['shelters','medicalCamps','depots','blockedRoutes','advisories'].forEach(k => {
+                const arr = updated.overlays[k] || [];
+                arr.forEach(a => list.push(a));
+              });
+              setItems(list);
+            } else {
+              await load();
+            }
+          } else {
+            // Fire-and-forget for non-polygon overlays
+            onOverlayChange().then((updated) => {
+              if (updated && updated.overlays) {
+                const list = [];
+                ['shelters','medicalCamps','depots','blockedRoutes','advisories'].forEach(k => {
+                  const arr = updated.overlays[k] || [];
+                  arr.forEach(a => list.push(a));
+                });
+                setItems(list);
+              } else {
+                load();
+              }
+            }).catch(() => load());
+          }
+        } catch (e) {
+          // If parent refresh failed, still try to refresh local state
+          await load();
+        }
       } else {
         // If no parent callback, just refresh local
         await load();
+      }
+
+      // If we just created a blockedRoute, clear drawing mode so operator can
+      // continue without accidentally adding more points and reset polygon points.
+      if (payload.type === 'blockedRoute') {
+        try { setDrawMode(false); } catch (e) { /* ignore */ }
+        try { setPolygonPoints([]); } catch (e) { /* ignore */ }
       }
     } catch (e) {
       console.error('Quick add failed', e);
@@ -172,6 +211,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
   const MapController = ({ areaBounds, focusedMarker, onFocused, onLog }) => {
     const map = useMap();
     const lastAppliedRef = useRef({ boundsKey: null, markerKey: null });
+    const lastFocusIdRef = useRef(null);
     const isRunningRef = useRef(false);
     // Track whether the user has manually interacted with the map since the last programmatic focus.
     // If true, do not reapply programmatic bounds/focus so the user is free to pan/zoom.
@@ -210,6 +250,9 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
           // avoid reapplying same bounds/marker repeatedly
           const boundsKey = areaBounds ? JSON.stringify(areaBounds) : null;
           const markerKey = focusedMarker ? JSON.stringify(focusedMarker) : null;
+          // If there's an explicit focus id, only apply when it changes. This prevents the map
+          // from continuously reapplying the same focus when the user interacts/zooms.
+          const propsFocusId = (areaBounds && areaBounds._focusId) || (focusedMarker && focusedMarker._focusId) || null;
 
           // If both are null and we've already applied null, don't do anything
           if (!boundsKey && !markerKey) {
@@ -224,7 +267,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
           }
 
           // If the same focus was already applied, skip. Also skip reapplying if the user has interacted
-          if (boundsKey === lastAppliedRef.current.boundsKey && markerKey === lastAppliedRef.current.markerKey) {
+          if (boundsKey === lastAppliedRef.current.boundsKey && markerKey === lastAppliedRef.current.markerKey && propsFocusId === lastFocusIdRef.current) {
             isRunningRef.current = false;
             return;
           }
@@ -235,6 +278,15 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
             return;
           }
 
+          // If a focus id exists, update lastFocusIdRef so we only apply that focus once.
+          if (propsFocusId) {
+            // If this focus id already applied, skip.
+            if (propsFocusId === lastFocusIdRef.current && boundsKey === lastAppliedRef.current.boundsKey && markerKey === lastAppliedRef.current.markerKey) {
+              isRunningRef.current = false;
+              return;
+            }
+          }
+
           if (areaBounds) {
             try { map.invalidateSize(); } catch (e) { /* ignore */ }
             // Fit bounds once to focus the area; do not force a min/max zoom so the user can zoom freely afterwards
@@ -243,12 +295,14 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
             lastAppliedRef.current.markerKey = markerKey;
             // Reset the user interaction flag because this focus was programmatically applied intentionally
             userInteractedRef.current = false;
+            if (propsFocusId) lastFocusIdRef.current = propsFocusId;
           } else if (focusedMarker) {
             try { map.invalidateSize(); } catch (e) { /* ignore */ }
             try { map.setView(focusedMarker, map.getZoom(), { animate: true }); } catch (e) { console.warn('MapController setView focused failed: ' + e.message); }
             lastAppliedRef.current.boundsKey = boundsKey;
             lastAppliedRef.current.markerKey = markerKey;
             userInteractedRef.current = false;
+            if (propsFocusId) lastFocusIdRef.current = propsFocusId;
           }
 
           // Call onFocused only once after movement completes
@@ -281,7 +335,13 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
       setLoading(true);
       let geometry = null;
       if (form.type === 'blockedRoute' && polygonPoints.length > 0) {
-        const coords = polygonPoints.map(p => [p[1], p[0]]);
+        let coords = polygonPoints.map(p => [p[1], p[0]]);
+        // Ensure polygon ring is closed (first point equals last)
+        if (coords.length > 0) {
+          const first = coords[0];
+          const last = coords[coords.length - 1];
+          if (first[0] !== last[0] || first[1] !== last[1]) coords.push(first);
+        }
         geometry = { type: 'Polygon', coordinates: [coords] };
       } else {
         const lng = pointMarker ? pointMarker[1] : (form.longitude ? Number(form.longitude) : null);
@@ -291,9 +351,16 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
         }
       }
 
+      // Require name explicitly
+      if (!form.name || !form.name.trim()) {
+        setUiWarning('Name is required for creating an overlay. Please enter a name.');
+        setLoading(false);
+        return;
+      }
+
       const payload = {
         type: form.type,
-        name: (form.name && form.name.trim()) ? form.name : `${form.type} at ${geometry && geometry.type === 'Point' && geometry.coordinates ? `${geometry.coordinates[1].toFixed(4)}, ${geometry.coordinates[0].toFixed(4)}` : Date.now()}` ,
+        name: form.name.trim(),
         status: form.status,
         capacity: form.capacity ? Number(form.capacity) : undefined,
         properties: {
@@ -328,6 +395,8 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
       }
       if (newItem) {
         setItems(prev => [...prev, newItem]);
+        // Inform parent to add overlay locally for immediate map/heatmap reflection
+        try { if (onLocalAddOverlay) onLocalAddOverlay(newItem); } catch (e) { /* ignore */ }
       }
       
       // Clear form
@@ -335,19 +404,35 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
       setPolygonPoints([]); 
       setPointMarker(null);
       
-      // Notify parent to refresh - it will update both maps efficiently
+      // Notify parent to refresh - it will update both maps efficiently.
+      // For blockedRoute (polygon) we await the parent refresh so the
+      // heatmap (which reads parent mapData) shows the newly added area
+      // immediately. For other overlay types we keep fire-and-forget behavior
+      // to keep the UI snappy.
       if (onOverlayChange) {
-        // Don't await - let it run in background while UI updates instantly
-        onOverlayChange().then(() => {
-          // Refresh local state after parent updates to ensure sync
-          load();
-        }).catch(() => {
-          // If parent refresh fails, still refresh local state
-          load();
-        });
+        try {
+          if (payload.type === 'blockedRoute') {
+            await onOverlayChange();
+            // Ensure local list also refreshes after parent updated
+            await load();
+          } else {
+            // Fire-and-forget for non-polygon overlays
+            onOverlayChange().then(() => load()).catch(() => load());
+          }
+        } catch (err) {
+          // If parent refresh failed, still try to reload local state
+          await load();
+        }
       } else {
         // If no parent callback, just refresh local
         await load();
+      }
+
+      // If we just created a blockedRoute, clear drawing mode so operator can
+      // continue without accidentally adding more points and reset polygon points.
+      if (payload.type === 'blockedRoute') {
+        try { setDrawMode(false); } catch (e) { /* ignore */ }
+        try { setPolygonPoints([]); } catch (e) { /* ignore */ }
       }
     } catch (e) {
       console.error('Failed to add overlay', e);
@@ -412,7 +497,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null }) => {
           <option value="blockedRoute">Blocked Route</option>
           <option value="advisory">Advisory</option>
         </select>
-        <input className="input-field md:col-span-2" placeholder="Name (optional - auto-generated if empty)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+  <input className="input-field md:col-span-2" placeholder="Name (required)" value={form.name} onChange={(e) => { setUiWarning(null); setForm({ ...form, name: e.target.value }) }} />
         <input className="input-field" placeholder="Latitude" value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} />
         <input className="input-field" placeholder="Longitude" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} />
         <input className="input-field md:col-span-2" placeholder="City (optional)" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
