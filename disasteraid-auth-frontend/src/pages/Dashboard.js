@@ -431,6 +431,7 @@ const Dashboard = () => {
       try {
         setLoadingTickets(true);
         if (sidebarTab === 'active') {
+          
           const [resActive, resMatched, resTriaged, resInProgress, resFulfilled] = await Promise.all([
             API.get('/tickets', { params: { status: 'active' }, signal: controller.signal }),
             API.get('/tickets', { params: { status: 'matched' }, signal: controller.signal }),
