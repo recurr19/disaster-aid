@@ -56,40 +56,68 @@ server.listen(PORT, () => {
 
 // Background matcher: periodically ensure proposals exist for active tickets
 const MATCH_INTERVAL_MS = 60 * 1000; // 60s
+const MATCH_LOOKBACK_MS = 6 * 60 * 60 * 1000; // 6 hours
 async function backgroundMatch() {
   try {
-    const since = new Date(Date.now() - 6 * 60 * 60 * 1000); // last 6 hours
+    const since = new Date(Date.now() - MATCH_LOOKBACK_MS);
     const activeTickets = await Ticket.find({ status: 'active', createdAt: { $gte: since } })
       .select('_id ticketId helpTypes locationGeo createdAt isSOS')
       .lean();
 
     for (const t of activeTickets) {
       try {
-        const matches = await matchTicket(t, { maxResults: 10 });
-        const proposals = matches.slice(0, 10);
-        for (const m of proposals) {
-          try {
-            await TicketAssignment.updateOne(
-              { ticket: t._id, ngo: m.ngoId },
-              {
-                $setOnInsert: {
-                  ticket: t._id,
-                  ticketId: t.ticketId,
-                  ngo: m.ngoId,
-                  status: 'proposed',
-                  isSOS: !!t.isSOS,
-                  matchedHelpTypes: m.matches || [],
-                  score: m.score || 0,
-                  distanceKm: m.distanceKm ?? null,
-                  etaMinutes: m.etaMinutes ?? null,
-                }
-              },
-              { upsert: true }
-            );
-          } catch (_) { /* ignore duplicate */ }
-        }
-        if (proposals.length) {
-          Realtime.emit('ticket:proposals', { ticketId: t.ticketId, proposals: proposals.map(p => ({ ngoId: p.ngoId, distanceKm: p.distanceKm, etaMinutes: p.etaMinutes, score: p.score })) });
+        // Find NGOs that have already been assigned (proposed, rejected, completed, etc.)
+        // We want to exclude them from being matched again.
+        const existingAssignments = await TicketAssignment.find({ ticket: t._id }).select('ngo status').lean();
+        const excludedNgoIds = existingAssignments.map(a => a.ngo.toString());
+
+        // Use multi-assign matcher
+        const { findNGOCombinations } = require('./utils/multiAssignMatching');
+
+        // Get combinations (returns array of groups)
+        const combinations = await findNGOCombinations(t, { maxResults: 20, excludedNgoIds });
+
+        // Take the best combination (index 0)
+        const bestCombo = combinations[0];
+
+        if (bestCombo && bestCombo.assignments) {
+          for (const assignment of bestCombo.assignments) {
+            const m = assignment.ngo;
+            const capacities = assignment.assignedCapacities;
+
+            try {
+              await TicketAssignment.updateOne(
+                { ticket: t._id, ngo: m.ngoId },
+                {
+                  $setOnInsert: {
+                    ticket: t._id,
+                    ticketId: t.ticketId,
+                    ngo: m.ngoId,
+                    status: 'proposed',
+                    isSOS: !!t.isSOS,
+                    matchedHelpTypes: m.matches || [],
+                    score: m.score || 0,
+                    distanceKm: m.distanceKm ?? null,
+                    etaMinutes: m.etaMinutes ?? null,
+                    assignedCapacities: capacities
+                  }
+                },
+                { upsert: true }
+              );
+            } catch (_) { /* ignore duplicate */ }
+          }
+
+          // Notify about proposals
+          if (bestCombo.assignments.length > 0) {
+            const proposals = bestCombo.assignments.map(a => ({
+              ngoId: a.ngo.ngoId,
+              distanceKm: a.ngo.distanceKm,
+              etaMinutes: a.ngo.etaMinutes,
+              score: a.ngo.score,
+              assignedCapacities: a.assignedCapacities
+            }));
+            Realtime.emit('ticket:proposals', { ticketId: t.ticketId, proposals });
+          }
         }
       } catch (e) {
         console.warn('Background match error for ticket', t.ticketId, e?.message || e);

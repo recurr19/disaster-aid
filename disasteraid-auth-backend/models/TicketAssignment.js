@@ -10,7 +10,14 @@ const ticketAssignmentSchema = new mongoose.Schema({
   score: { type: Number, default: 0 },
   distanceKm: { type: Number },
   etaMinutes: { type: Number },
+  etaMinutes: { type: Number },
   note: { type: String },
+  assignedCapacities: {
+    food: { type: Number, default: 0 },
+    medical: { type: Number, default: 0 },
+    transport: { type: Number, default: 0 },
+    shelter: { type: Number, default: 0 }
+  }
 }, { timestamps: true });
 
 ticketAssignmentSchema.index({ ticket: 1, ngo: 1 }, { unique: true });

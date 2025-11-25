@@ -8,17 +8,19 @@ const { matchTicket } = require('./matching');
  */
 async function findNGOCombinations(ticket, options = {}) {
     // Get all candidate NGOs first
-    const allMatches = await matchTicket(ticket, { 
+    const allMatches = await matchTicket(ticket, {
         ...options,
         maxResults: 50  // Get more candidates for combining
     });
 
     const requested = ticket.requestedQuantities || {};
+    const helpTypes = ticket.helpTypes || [];
+
     const totalNeeded = {
-        food: requested.food || (ticket.adults + ticket.children + ticket.elderly) || 0,
-        medical: requested.medical || 1,  // Default to 1 if medical help needed
-        transport: requested.transport || (ticket.adults + ticket.children + ticket.elderly) || 0,
-        shelter: requested.shelter || (ticket.adults + ticket.children + ticket.elderly) || 0
+        food: requested.food || (helpTypes.includes('food') ? (ticket.adults + ticket.children + ticket.elderly) : 0),
+        medical: requested.medical || (helpTypes.includes('medical') ? 1 : 0),
+        transport: requested.transport || (helpTypes.includes('transport') ? (ticket.adults + ticket.children + ticket.elderly) : 0),
+        shelter: requested.shelter || (helpTypes.includes('shelter') ? (ticket.adults + ticket.children + ticket.elderly) : 0)
     };
 
     // If single NGO can handle it, return that
@@ -35,7 +37,7 @@ async function findNGOCombinations(ticket, options = {}) {
 
     // Try combinations of 2-3 NGOs
     const combinations = [];
-    
+
     // Try pairs
     for (let i = 0; i < allMatches.length - 1; i++) {
         for (let j = i + 1; j < allMatches.length; j++) {
@@ -50,7 +52,7 @@ async function findNGOCombinations(ticket, options = {}) {
             for (let j = i + 1; j < allMatches.length - 1; j++) {
                 for (let k = j + 1; k < allMatches.length; k++) {
                     const combo = tryNGOCombination(
-                        [allMatches[i], allMatches[j], allMatches[k]], 
+                        [allMatches[i], allMatches[j], allMatches[k]],
                         totalNeeded
                     );
                     if (combo) combinations.push(combo);
@@ -97,7 +99,7 @@ function tryNGOCombination(ngos, totalNeeded) {
     // Try to fulfill needs with each NGO
     for (const ngo of ngos) {
         const assigned = calculateAssignedCapacities(ngo, remaining);
-        
+
         // If this NGO can contribute something
         if (Object.values(assigned).some(v => v > 0)) {
             assignments.push({ ngo, assignedCapacities: assigned });
