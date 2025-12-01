@@ -149,6 +149,10 @@ exports.listDispatchers = async (req, res) => {
 
     const dispatchers = await Dispatcher.find({ ngo: ngo._id })
       .populate('user', 'name email')
+      .populate({
+        path: 'assignedTickets',
+        select: 'ticketId name address landmark deliveryProof status',
+      })
       .sort({ createdAt: 1 });
 
     res.json({ dispatchers });

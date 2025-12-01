@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import API from '../../api/axios';
 import AppHeader from '../common/AppHeader';
 import { AuthContext } from '../../context/AuthContext';
+import { updateTicketStatus } from '../../api/tracker';
+import { uploadDeliveryProof } from '../../api/dispatcher';
 
 const DispatcherDashboard = () => {
   const [tickets, setTickets] = useState([]);
@@ -11,6 +13,7 @@ const DispatcherDashboard = () => {
   // Removed unused selectedTicket state (not referenced in UI rendering)
   const [uploadFiles, setUploadFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [updatingTicketId, setUpdatingTicketId] = useState(null);
   
   const { logout, user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -44,23 +47,40 @@ const DispatcherDashboard = () => {
 
     try {
       setUploading(true);
-      const formData = new FormData();
-      uploadFiles.forEach(file => {
-        formData.append('files[]', file);
-      });
 
-      await API.post(`/dispatcher/upload-proof/${ticketId}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await uploadDeliveryProof(ticketId, uploadFiles);
 
       alert('Delivery proof uploaded successfully!');
       setUploadFiles([]);
       fetchMyTickets();
     } catch (err) {
       console.error('Error uploading proof:', err);
-      alert('Failed to upload delivery proof');
+      const message = err?.response?.data?.message || 'Failed to upload delivery proof';
+      alert(message);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleUpdateStatus = async (ticketId, newStatus) => {
+    if (!ticketId || !newStatus) return;
+
+    try {
+      setUpdatingTicketId(ticketId);
+      await updateTicketStatus(ticketId, newStatus, `Dispatcher updated status to ${newStatus}`);
+
+      setTickets(prev =>
+        prev.map(t =>
+          t.ticketId === ticketId
+            ? { ...t, status: newStatus }
+            : t
+        )
+      );
+    } catch (err) {
+      console.error('Error updating ticket status from dispatcher:', err);
+      alert('Failed to update delivery status');
+    } finally {
+      setUpdatingTicketId(null);
     }
   };
 
@@ -114,7 +134,7 @@ const DispatcherDashboard = () => {
           </div>
         ) : (
           <div className="grid gap-6">
-            {tickets.map((ticket) => (
+            {tickets.filter(t => t.status !== 'closed').map((ticket) => (
               <div key={ticket._id} className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 overflow-hidden hover:shadow-2xl transition-all">
                 <div className="p-6">
                   {/* Ticket Header */}
@@ -127,13 +147,27 @@ const DispatcherDashboard = () => {
                             <AlertTriangle className="w-3 h-3" /> SOS
                           </span>
                         )}
-                        <span className={`px-3 py-1 text-xs font-semibold rounded-full shadow-sm ${
-                          ticket.status === 'completed' ? 'bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 text-green-800' :
-                          ticket.status === 'in-progress' ? 'bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-200 text-yellow-800' :
-                          'bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 text-blue-800'
-                        }`}>
-                          {ticket.status}
-                        </span>
+                        {(() => {
+                          const s = ticket.status;
+                          let label = s;
+                          if (s === 'dispatched') label = 'Dispatched';
+                          else if (s === 'in_progress' || s === 'in-progress') label = 'On the way';
+                          else if (s === 'fulfilled') label = 'Reached location';
+                          else if (s === 'completed') label = 'Delivered';
+
+                          const cls =
+                            s === 'completed' || s === 'fulfilled'
+                              ? 'bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 text-green-800'
+                              : (s === 'in-progress' || s === 'in_progress')
+                              ? 'bg-gradient-to-r from-yellow-100 to-amber-100 border border-yellow-200 text-yellow-800'
+                              : 'bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 text-blue-800';
+
+                          return (
+                            <span className={`px-3 py-1 text-xs font-semibold rounded-full shadow-sm ${cls}`}>
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <p className="text-sm text-gray-600 flex items-center gap-1">
                         <Clock className="w-4 h-4" />
@@ -209,35 +243,102 @@ const DispatcherDashboard = () => {
                   {/* Delivery Proof Section */}
                   <div className="border-t border-gray-200 pt-5 mt-4">
                     <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <div className="p-2 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl">
+                        <Clock className="w-5 h-5 text-blue-600" />
+                      </div>
+                      Delivery Status
+                    </h4>
+
+                    <div className="mb-6">
+                      <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-red-500" /> Victim Location
+                      </p>
+                      {ticket.address || ticket.landmark ? (
+                        <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm h-40">
+                          <iframe
+                            title={`map-${ticket._id}`}
+                            className="w-full h-full border-0"
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                            src={`https://www.google.com/maps?q=${encodeURIComponent(
+                              `${ticket.address || ''} ${ticket.landmark || ''}`.trim()
+                            )}&output=embed`}
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 italic mb-4">
+                          No precise address available to show on map.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mb-6 flex flex-wrap gap-3">
+                      {[
+                        { key: 'dispatched',  label: 'Dispatched' },
+                        { key: 'in_progress', label: 'On the way' },
+                        { key: 'fulfilled',   label: 'Reached location' },
+                        { key: 'completed',   label: 'Delivered' },
+                      ].map((option) => {
+                        const isActive =
+                          ticket.status === option.key ||
+                          (option.key === 'in_progress' && ticket.status === 'in-progress');
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => handleUpdateStatus(ticket.ticketId, option.key)}
+                            disabled={updatingTicketId === ticket.ticketId}
+                            className={`px-4 py-2 rounded-full text-xs font-semibold border transition-colors flex items-center gap-2 ${
+                              isActive
+                                ? 'bg-blue-600 text-white border-blue-700 shadow-md'
+                                : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
+                            } ${
+                              updatingTicketId === ticket.ticketId
+                                ? 'opacity-70 cursor-wait'
+                                : ''
+                            }`}
+                          >
+                            <span>{option.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                       <div className="p-2 bg-gradient-to-br from-indigo-100 to-indigo-50 rounded-xl">
                         <Upload className="w-5 h-5 text-indigo-600" />
                       </div>
                       Delivery Proof
                     </h4>
                     
-                    {ticket.deliveryProof && ticket.deliveryProof.length > 0 ? (
-                      <div className="mb-4">
-                        <p className="text-sm text-green-700 font-semibold mb-3 flex items-center gap-1">
-                          <CheckCircle className="w-4 h-4" />
-                          {ticket.deliveryProof.length} file(s) uploaded
-                        </p>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {ticket.deliveryProof.map((file, idx) => (
-                            <div key={idx} className="glass-card bg-gradient-to-br from-green-50 to-emerald-50 backdrop-blur p-3 rounded-xl border border-green-200 text-xs">
-                              <p className="truncate font-semibold text-green-900">{file.originalname}</p>
-                              <p className="text-green-600 mt-1">{new Date(file.uploadedAt).toLocaleDateString()}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 mb-4 italic">No delivery proof uploaded yet</p>
-                    )}
-
-                    {ticket.status !== 'completed' && (
-                      <div className="space-y-4">
+                    <div className="mt-2 glass-card bg-white/80 backdrop-blur rounded-xl border border-gray-200 p-4 space-y-4">
+                      {ticket.deliveryProof && ticket.deliveryProof.length > 0 ? (
                         <div>
-                          <label className="block text-sm font-bold text-gray-900 mb-3">
+                          <p className="text-sm text-green-700 font-semibold mb-3 flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" />
+                            {ticket.deliveryProof.length} file(s) uploaded
+                          </p>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {ticket.deliveryProof.map((file, idx) => (
+                              <div
+                                key={idx}
+                                className="glass-card bg-gradient-to-br from-green-50 to-emerald-50 backdrop-blur p-3 rounded-xl border border-green-200 text-xs"
+                              >
+                                <p className="truncate font-semibold text-green-900">{file.originalname}</p>
+                                <p className="text-green-600 mt-1">{new Date(file.uploadedAt).toLocaleDateString()}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">
+                          No delivery proof uploaded yet
+                        </p>
+                      )}
+
+                      <div className="pt-2 border-t border-dashed border-gray-200 mt-2 space-y-3">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-900 mb-2">
                             Upload Photos/Documents
                           </label>
                           <input
@@ -245,24 +346,24 @@ const DispatcherDashboard = () => {
                             multiple
                             accept="image/*,.pdf"
                             onChange={handleFileChange}
-                            className="block w-full text-sm text-gray-700 file:mr-4 file:py-3 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-600 file:to-indigo-600 file:text-white hover:file:from-blue-700 hover:file:to-indigo-700 file:shadow-lg file:cursor-pointer"
+                            className="block w-full text-sm text-gray-700 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-600 file:to-indigo-600 file:text-white hover:file:from-blue-700 hover:file:to-indigo-700 file:shadow-md file:cursor-pointer"
                           />
                           {uploadFiles.length > 0 && (
-                            <p className="text-sm text-blue-600 font-medium mt-2 flex items-center gap-1">
-                              <Paperclip className="w-4 h-4" /> {uploadFiles.length} file(s) selected
+                            <p className="text-xs text-blue-600 font-medium mt-1 flex items-center gap-1">
+                              <Paperclip className="w-3 h-3" /> {uploadFiles.length} file(s) selected
                             </p>
                           )}
                         </div>
                         <button
                           onClick={() => handleUploadProof(ticket._id)}
                           disabled={uploading || uploadFiles.length === 0}
-                          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all"
+                          className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-md hover:shadow-lg transition-all text-sm"
                         >
-                          <Upload className="w-5 h-5" />
+                          <Upload className="w-4 h-4" />
                           <span>{uploading ? 'Uploading...' : 'Upload Delivery Proof'}</span>
                         </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, User, Package, Truck, Bell, MapPin, Target, Settings, RefreshCw, Users, Mail, Key, Activity, FileText, Shield, CheckCircle, X } from "lucide-react";
+import { Plus, Edit2, User, Package, Truck, Bell, MapPin, Target, Settings, RefreshCw, Users, Mail, Key, Activity, FileText, Shield, CheckCircle, X, Eye } from "lucide-react";
 import NGOResourceForm from "./NGOResourceForm";
 import MatchedCitizensList from "./MatchedCitizensList";
 import ActiveRequestsTracker from "./ActiveRequestsTracker";
@@ -49,6 +49,9 @@ export default function NGODashboard() {
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [generatedCredentials, setGeneratedCredentials] = useState(null);
   const [dispatchSuccess, setDispatchSuccess] = useState(null);
+  const [showAssignedTicketsModal, setShowAssignedTicketsModal] = useState(false);
+  const [reassignSelection, setReassignSelection] = useState({});
+  const [reassigningTicketId, setReassigningTicketId] = useState(null);
 
   // Load NGO profile and matches
   useEffect(() => {
@@ -100,7 +103,9 @@ export default function NGODashboard() {
           acceptedAt: new Date(a.createdAt).toLocaleString(),
           status: 'matched', // actual status comes from tracker; we will update as user changes
           isDispatched: a.ticket?.isDispatched || false,
-          dispatchedTo: a.ticket?.dispatchedTo
+          dispatchedTo: a.ticket?.dispatchedTo,
+          deliveryProof: a.ticket?.deliveryProof,
+          proofOfDelivery: a.ticket?.proofOfDelivery
         }));
         setActiveRequests(requests);
 
@@ -139,11 +144,16 @@ export default function NGODashboard() {
         setMatchedCitizens(citizens);
         const requests = (accepted.assignments || []).map(a => ({
           id: a.ticket?.ticketId,
+          ticketObjectId: a.ticket?._id,
           citizenName: a.ticket?.name || 'Citizen',
           helpType: (a.ticket?.helpTypes || []).join(', '),
           location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
           acceptedAt: new Date(a.createdAt).toLocaleString(),
-          status: 'matched'
+          status: 'matched',
+          isDispatched: a.ticket?.isDispatched || false,
+          dispatchedTo: a.ticket?.dispatchedTo,
+          deliveryProof: a.ticket?.deliveryProof,
+          proofOfDelivery: a.ticket?.proofOfDelivery
         }));
         setActiveRequests(requests);
       } catch {}
@@ -285,6 +295,76 @@ export default function NGODashboard() {
     }
   };
 
+  const handleOpenAssignedTickets = async () => {
+    try {
+      const dispatcherRes = await listDispatchersAPI();
+      setDispatchers(dispatcherRes.dispatchers || []);
+    } catch (err) {
+      console.error('Failed to refresh dispatchers before opening assigned tickets:', err);
+    } finally {
+      setShowAssignedTicketsModal(true);
+    }
+  };
+
+  const handleCloseAssignedTickets = () => {
+    setShowAssignedTicketsModal(false);
+  };
+
+  const handleReassignDispatcher = async (ticketObjectId, dispatcherId) => {
+    if (!ticketObjectId || !dispatcherId) {
+      alert('Please select a dispatcher to reassign this ticket');
+      return;
+    }
+
+    try {
+      setReassigningTicketId(ticketObjectId);
+      await assignTicketToDispatcher(ticketObjectId, dispatcherId);
+
+      // Refresh dispatchers/tickets so modal reflects the new assignment
+      const dispatcherRes = await listDispatchersAPI();
+      setDispatchers(dispatcherRes.dispatchers || []);
+      setReassignSelection((prev) => ({ ...prev, [ticketObjectId]: dispatcherId }));
+    } catch (err) {
+      console.error('Failed to reassign dispatcher from NGO dashboard:', err);
+      alert(err?.response?.data?.message || 'Failed to reassign dispatcher');
+    } finally {
+      setReassigningTicketId(null);
+    }
+  };
+
+  const assignedTicketsRaw = dispatchers.flatMap((dispatcher) =>
+    (dispatcher.assignedTickets || []).map((t) => {
+      const ticket = typeof t === 'object' && t !== null ? t : { id: t };
+      const ticketId =
+        ticket.ticketId || ticket.id || ticket._id || ticket.ticketObjectId;
+
+      return {
+        ticketId,
+        ticketObjectId: ticket._id || ticket.ticketObjectId || ticketId,
+        citizenName: ticket.citizenName || ticket.name,
+        location: ticket.location || ticket.address || ticket.landmark,
+        // Raw status/proof from dispatcher view; final status shown in modal
+        // will come from activeRequests when available
+        statusFromDispatcher: ticket.status || ticket.deliveryStatus,
+        deliveryProof: ticket.deliveryProof,
+        proofOfDelivery: ticket.proofOfDelivery,
+        dispatcher,
+      };
+    })
+  );
+
+  const assignedTickets = assignedTicketsRaw
+    .map((ticket) => {
+      const trackerRequest = activeRequests.find((r) => r.id === ticket.ticketId);
+      // Prefer latest status from ticket/dispatcher (DB), fall back to older tracker snapshot
+      const status =
+        ticket.statusFromDispatcher ||
+        trackerRequest?.status ||
+        'dispatched';
+      return { ...ticket, status };
+    })
+    .filter((ticket) => ticket.status !== 'closed');
+
   const stats = {
     foodCapacity: ngoProfile?.foodCapacity || 0,
     medicalTeams: ngoProfile?.medicalTeamCount || 0,
@@ -292,6 +372,7 @@ export default function NGODashboard() {
     coverageRadius: ngoProfile?.coverageRadius || 5,
     pendingMatches: matchedCitizens.length,
     activeAssignments: activeRequests.length,
+    assignedTickets: assignedTickets.length,
   };
 
   const handleLogout = () => {
@@ -353,6 +434,16 @@ export default function NGODashboard() {
             <p className="text-2xl font-bold text-gray-900">{stats.activeAssignments}</p>
             <p className="text-xs text-gray-600 mt-1">missions</p>
           </div>
+
+          <button
+            type="button"
+            onClick={handleOpenAssignedTickets}
+            className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl p-5 border border-white/60 shadow-xl hover:shadow-2xl transition-all text-left"
+          >
+            <p className="text-indigo-600 text-sm font-semibold mb-1">Assigned Tickets</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.assignedTickets}</p>
+            <p className="text-xs text-gray-600 mt-1">with field dispatchers</p>
+          </button>
         </div>
 
         {/* Tabs */}
@@ -863,6 +954,208 @@ export default function NGODashboard() {
             onDispatch={handleDispatchTicket}
             dispatchers={dispatchers}
           />
+        </div>
+      )}
+
+      {showAssignedTicketsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Assigned Tickets</h3>
+                <p className="text-xs text-gray-500">All tickets currently dispatched to field teams</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseAssignedTickets}
+                className="text-gray-500 hover:text-gray-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 overflow-y-auto">
+              {assignedTickets.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No tickets have been assigned to dispatchers yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {assignedTickets.map((ticket) => {
+                    const ticketId = ticket.ticketId;
+                    const rawStatus = ticket.status;
+                    const hasProof =
+                      (ticket.deliveryProof && ticket.deliveryProof.length > 0) ||
+                      (ticket.proofOfDelivery && ticket.proofOfDelivery.length > 0) ||
+                      false;
+                    const dispatcherLabel =
+                      ticket.dispatcher?.name || ticket.dispatcher?.dispatcherId;
+
+                    let statusLabel = rawStatus;
+                    if (rawStatus === 'matched' && dispatcherLabel) statusLabel = 'Dispatched';
+                    else if (rawStatus === 'dispatched') statusLabel = 'Dispatched';
+                    else if (rawStatus === 'in_progress' || rawStatus === 'in-progress') statusLabel = 'On the way';
+                    else if (rawStatus === 'fulfilled') statusLabel = 'Reached location';
+                    else if (rawStatus === 'completed') statusLabel = 'Delivered';
+                    else if (rawStatus === 'closed') statusLabel = 'Closed';
+
+                    const ticketStatus = rawStatus;
+
+                    return (
+                      <div
+                        key={ticketId}
+                        className="glass-card bg-white/90 backdrop-blur rounded-xl border border-gray-200 p-4 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <p className="text-[11px] text-gray-500 font-mono tracking-tight">
+                              Ticket ID: {ticketId}
+                            </p>
+                            {ticket.citizenName && (
+                              <p className="text-sm font-semibold text-gray-900">
+                                {ticket.citizenName}
+                              </p>
+                            )}
+                            {ticket.location && (
+                              <p className="text-xs text-gray-600">
+                                <span className="font-semibold text-gray-700">Location:</span>{' '}
+                                {ticket.location}
+                              </p>
+                            )}
+                            {dispatcherLabel && (
+                              <p className="text-xs text-gray-600">
+                                <span className="font-semibold text-gray-700">Dispatcher:</span>{' '}
+                                {dispatcherLabel}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col items-end gap-2">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                ticketStatus === 'closed'
+                                  ? 'bg-green-100 text-green-800 border border-green-200'
+                                  : ticketStatus === 'completed' || ticketStatus === 'fulfilled'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : (ticketStatus === 'in_progress' || ticketStatus === 'in-progress')
+                                  ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                                  : 'bg-gray-100 text-gray-800 border-gray-200'
+                              }`}
+                            >
+                              Status: {statusLabel}
+                            </span>
+
+                            <div className="text-xs text-gray-600 flex flex-col items-end gap-1 mt-1">
+                              <div className="flex items-center gap-2">
+                                <span>Proof of delivery:</span>
+                                {hasProof ? (
+                                  <span className="font-semibold text-green-700">
+                                    Available
+                                  </span>
+                                ) : (
+                                  <span className="font-semibold text-red-600">
+                                    Not uploaded
+                                  </span>
+                                )}
+                                {hasProof && (
+                                  <details className="ml-1 cursor-pointer">
+                                    <summary className="list-none flex items-center gap-1 text-indigo-600 hover:text-indigo-800">
+                                      <Eye className="w-3 h-3" />
+                                      <span>View</span>
+                                    </summary>
+                                    <div className="mt-1 bg-white border border-gray-200 rounded-md shadow-sm p-2 min-w-[180px] text-left">
+                                      {ticket.deliveryProof && ticket.deliveryProof.length > 0 && (
+                                        <div className="mb-1">
+                                          <p className="font-semibold text-xs text-gray-800 mb-1">Dispatcher Uploads</p>
+                                          <ul className="text-[11px] text-gray-700 space-y-0.5 max-h-32 overflow-y-auto">
+                                            {ticket.deliveryProof.map((file, idx) => {
+                                              const href = `http://localhost:5001/uploads/${file.filename}`;
+                                              return (
+                                                <li key={idx} className="truncate">
+                                                  • <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800">
+                                                      {file.originalname || file.filename || 'File'}
+                                                    </a>
+                                                </li>
+                                              );
+                                            })}
+                                          </ul>
+                                        </div>
+                                      )}
+                                      {ticket.proofOfDelivery && ticket.proofOfDelivery.length > 0 && (
+                                        <div>
+                                          <p className="font-semibold text-xs text-gray-800 mb-1">Citizen / Other Proof</p>
+                                          <ul className="text-[11px] text-gray-700 space-y-0.5 max-h-32 overflow-y-auto">
+                                            {ticket.proofOfDelivery.map((file, idx) => {
+                                              const href = `http://localhost:5001/uploads/${file.filename}`;
+                                              return (
+                                                <li key={idx} className="truncate">
+                                                  • <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800">
+                                                      {file.originalname || file.filename || 'File'}
+                                                    </a>
+                                                </li>
+                                              );
+                                            })}
+                                          </ul>
+                                        </div>
+                                      )}
+                                      {!ticket.deliveryProof && !ticket.proofOfDelivery && (
+                                        <p className="text-[11px] text-gray-500">No file metadata available.</p>
+                                      )}
+                                    </div>
+                                  </details>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleReassignDispatcher(
+                                    ticket.ticketObjectId,
+                                    ticket.dispatcher?._id
+                                  )
+                                }
+                                disabled={
+                                  reassigningTicketId === ticket.ticketObjectId ||
+                                  !ticket.dispatcher?._id
+                                }
+                                className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                {reassigningTicketId === ticket.ticketObjectId
+                                  ? 'Reassigning to dispatcher...'
+                                  : 'Reassign to same dispatcher'}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleStatusUpdate(ticketId, 'closed')}
+                                disabled={!hasProof || ticketStatus === 'closed'}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                                  !hasProof || ticketStatus === 'closed'
+                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                    : 'bg-green-600 text-white border-green-700 hover:bg-green-700'
+                                }`}
+                                title={
+                                  !hasProof
+                                    ? 'Cannot close ticket until proof of delivery is uploaded'
+                                    : ticketStatus === 'closed'
+                                    ? 'Ticket already closed'
+                                    : 'Close ticket after verifying proof'
+                                }
+                              >
+                                Close Ticket
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
