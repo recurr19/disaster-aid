@@ -2,6 +2,7 @@ const Ticket = require('../models/Ticket');
 const TicketAssignment = require('../models/TicketAssignment');
 const RegisteredNGO = require('../models/RegisteredNGO');
 const Overlay = require('../models/Overlay');
+const Realtime = require('../utils/realtime');
 
 // GET /api/authority/map
 // Returns tickets with geo + assignee, and placeholder overlay layers
@@ -11,7 +12,7 @@ exports.getMapData = async (req, res) => {
       'locationGeo.coordinates': { $type: 'array' }
     })
       .select('ticketId isSOS status helpTypes createdAt locationGeo assignedTo')
-      .populate('assignedTo', 'organizationName phone location')
+      .populate('assignedTo', 'organizationName phone location locationGeo')
       .lean();
 
     const features = tickets.map(t => ({
@@ -27,7 +28,8 @@ exports.getMapData = async (req, res) => {
           id: String(t.assignedTo._id),
           organizationName: t.assignedTo.organizationName,
           phone: t.assignedTo.phone,
-          location: t.assignedTo.location
+          location: t.assignedTo.location,
+          locationGeo: t.assignedTo.locationGeo
         } : null
       }
     }));
@@ -41,6 +43,8 @@ exports.getMapData = async (req, res) => {
       blockedRoutes: overlaysDocs.filter(o => o.type === 'blockedRoute'),
       advisories: overlaysDocs.filter(o => o.type === 'advisory')
     };
+
+    // (debug log removed)
 
     res.json({
       success: true,
@@ -73,6 +77,8 @@ exports.createOverlay = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
     const item = await Overlay.create({ type, name, status, capacity, properties: properties || {}, geometry });
+    // Notify realtime clients that overlays changed
+    try { Realtime.emit('overlays:changed', { action: 'create', item }); } catch (e) { /* ignore */ }
     res.status(201).json({ success: true, item });
   } catch (e) {
     res.status(500).json({ success: false, message: 'Failed to create overlay' });
@@ -85,6 +91,7 @@ exports.updateOverlay = async (req, res) => {
     const updates = req.body || {};
     const item = await Overlay.findByIdAndUpdate(id, updates, { new: true });
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
+    try { Realtime.emit('overlays:changed', { action: 'update', item }); } catch (e) { /* ignore */ }
     res.json({ success: true, item });
   } catch (e) {
     res.status(500).json({ success: false, message: 'Failed to update overlay' });
@@ -96,6 +103,7 @@ exports.deleteOverlay = async (req, res) => {
     const { id } = req.params;
     const item = await Overlay.findByIdAndDelete(id);
     if (!item) return res.status(404).json({ success: false, message: 'Not found' });
+    try { Realtime.emit('overlays:changed', { action: 'delete', id }); } catch (e) { /* ignore */ }
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ success: false, message: 'Failed to delete overlay' });

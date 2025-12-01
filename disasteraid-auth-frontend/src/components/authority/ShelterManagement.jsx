@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import './authority.css';
-import { listOverlays, createOverlay, deleteOverlay } from '../../api/authority';
+import { listOverlays, createOverlay, updateOverlay, deleteOverlay } from '../../api/authority';
 import { MapContainer, TileLayer, Marker, CircleMarker, Polygon, Popup, useMapEvents, useMap } from 'react-leaflet';
 
 const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAddOverlay = null }) => {
@@ -33,12 +33,12 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
   const formRef = useRef(form);
   const [mapLogs, setMapLogs] = useState([]);
   const pushMapLog = (msg) => setMapLogs(prev => [...prev, `${new Date().toISOString()} ${msg}`].slice(-50));
-  
+
   // Keep formRef in sync with form state
   useEffect(() => {
     formRef.current = form;
   }, [form]);
-  
+
   // Memoize callbacks to prevent infinite loops
   const handleMapFocused = useCallback(() => {
     setUiWarning(null);
@@ -53,7 +53,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
       // Fallback to overlays prop if API fails
       if (overlays) {
         const list = [];
-        ['shelters','medicalCamps','depots','blockedRoutes','advisories'].forEach(k => {
+        ['shelters', 'medicalCamps', 'depots', 'blockedRoutes', 'advisories'].forEach(k => {
           const arr = overlays[k] || [];
           arr.forEach(a => list.push(a));
         });
@@ -78,11 +78,11 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
       setUiWarning('Name is required for creating an overlay. Please enter a name and try again.');
       return;
     }
-    
+
     try {
       setLoading(true);
       const geometry = { type: 'Point', coordinates: [Number(lng), Number(lat)] };
-      
+
       // Generate default name if not provided (backend requires name)
       const payload = {
         type: currentForm.type,
@@ -95,10 +95,10 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
         },
         geometry
       };
-      
+
       // Create overlay
       const result = await createOverlay(payload);
-      
+
       // Optimistic update - add to local state immediately for instant feedback
       let newItem = null;
       if (result && (result.item || result.overlay)) {
@@ -119,11 +119,11 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
         // Inform parent to add overlay locally for immediate map/heatmap reflection
         try { if (onLocalAddOverlay) onLocalAddOverlay(newItem); } catch (e) { /* ignore */ }
       }
-      
+
       // Keep form type and status, but clear location-specific fields
       setForm(f => ({ ...f, latitude: '', longitude: '' }));
       setPointMarker(null);
-      
+
       // Notify parent to refresh - it will update both maps efficiently
       if (onOverlayChange) {
         try {
@@ -133,7 +133,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
             if (updated && updated.overlays) {
               // build flat items list from overlays so the local map updates immediately
               const list = [];
-              ['shelters','medicalCamps','depots','blockedRoutes','advisories'].forEach(k => {
+              ['shelters', 'medicalCamps', 'depots', 'blockedRoutes', 'advisories'].forEach(k => {
                 const arr = updated.overlays[k] || [];
                 arr.forEach(a => list.push(a));
               });
@@ -146,7 +146,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
             onOverlayChange().then((updated) => {
               if (updated && updated.overlays) {
                 const list = [];
-                ['shelters','medicalCamps','depots','blockedRoutes','advisories'].forEach(k => {
+                ['shelters', 'medicalCamps', 'depots', 'blockedRoutes', 'advisories'].forEach(k => {
                   const arr = updated.overlays[k] || [];
                   arr.forEach(a => list.push(a));
                 });
@@ -191,7 +191,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
         } else {
           setUiWarning(null);
         }
-        
+
         if (quickAdd && mode === 'point') {
           // Quick add mode - immediately create overlay
           quickAddOverlay(lat, lng);
@@ -216,7 +216,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
     // Track whether the user has manually interacted with the map since the last programmatic focus.
     // If true, do not reapply programmatic bounds/focus so the user is free to pan/zoom.
     const userInteractedRef = useRef(false);
-    
+
     useEffect(() => {
       if (!map) return;
       if (isRunningRef.current) return; // Prevent concurrent runs
@@ -374,10 +374,10 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
         setUiWarning('Please select a location on the map or provide latitude/longitude');
         return;
       }
-      
+
       // Create overlay
       const result = await createOverlay(payload);
-      
+
       // Optimistic update - add to local state immediately for instant feedback
       let newItem = null;
       if (result && (result.item || result.overlay)) {
@@ -398,12 +398,12 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
         // Inform parent to add overlay locally for immediate map/heatmap reflection
         try { if (onLocalAddOverlay) onLocalAddOverlay(newItem); } catch (e) { /* ignore */ }
       }
-      
+
       // Clear form
       setForm({ ...form, name: '', capacity: '', latitude: '', longitude: '' });
-      setPolygonPoints([]); 
+      setPolygonPoints([]);
       setPointMarker(null);
-      
+
       // Notify parent to refresh - it will update both maps efficiently.
       // For blockedRoute (polygon) we await the parent refresh so the
       // heatmap (which reads parent mapData) shows the newly added area
@@ -452,6 +452,75 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
     }
   };
 
+  // Edit flow
+  const [editingItem, setEditingItem] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+
+  const openEdit = (item) => {
+    // Pre-fill edit form from item
+    const ef = {
+      id: item._id,
+      type: item.type,
+      name: item.name || '',
+      status: item.status || 'open',
+      capacity: item.capacity || '',
+      city: item.properties?.city || '',
+      state: item.properties?.state || '',
+      geometry: item.geometry || null
+    };
+    // If point, expose lat/lng fields for convenience
+    if (ef.geometry && ef.geometry.type === 'Point' && Array.isArray(ef.geometry.coordinates)) {
+      ef.lat = ef.geometry.coordinates[1];
+      ef.lng = ef.geometry.coordinates[0];
+    }
+    setEditForm(ef);
+    setEditingItem(item);
+  };
+
+  const closeEdit = () => {
+    setEditingItem(null);
+    setEditForm(null);
+  };
+
+  const saveEdit = async () => {
+    if (!editForm || !editForm.id) return;
+    try {
+      setLoading(true);
+      // Build payload similar to createOverlay
+      const payload = {
+        type: editForm.type,
+        name: editForm.name && editForm.name.trim() ? editForm.name.trim() : 'Unnamed',
+        status: editForm.status,
+        capacity: editForm.capacity ? Number(editForm.capacity) : undefined,
+        properties: {
+          city: editForm.city || undefined,
+          state: editForm.state || undefined
+        },
+        geometry: null
+      };
+
+      if (editForm.geometry && editForm.geometry.type === 'Polygon') {
+        // Keep existing polygon geometry (editing polygon vertices inline is out-of-scope)
+        payload.geometry = editForm.geometry;
+      } else if (editForm.lat != null && editForm.lng != null) {
+        payload.geometry = { type: 'Point', coordinates: [Number(editForm.lng), Number(editForm.lat)] };
+      } else if (editForm.geometry && editForm.geometry.type === 'Point') {
+        payload.geometry = editForm.geometry; // fallback
+      }
+
+      await updateOverlay(editForm.id, payload);
+      // Refresh list and parent data
+      await load();
+      if (onOverlayChange) onOverlayChange();
+      closeEdit();
+    } catch (e) {
+      console.error('Failed to update overlay', e);
+      alert('Failed to update overlay');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="card">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Shelters & Resources</h2>
@@ -467,8 +536,8 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                 Quick Add Mode: Click anywhere on the map to add {form.type}
               </span>
             </div>
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="text-sm text-green-700 hover:text-green-900 underline"
               onClick={() => setQuickAddMode(false)}
             >
@@ -497,7 +566,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
           <option value="blockedRoute">Blocked Route</option>
           <option value="advisory">Advisory</option>
         </select>
-  <input className="input-field md:col-span-2" placeholder="Name (required)" value={form.name} onChange={(e) => { setUiWarning(null); setForm({ ...form, name: e.target.value }) }} />
+        <input className="input-field md:col-span-2" placeholder="Name (required)" value={form.name} onChange={(e) => { setUiWarning(null); setForm({ ...form, name: e.target.value }) }} />
         <input className="input-field" placeholder="Latitude" value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} />
         <input className="input-field" placeholder="Longitude" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} />
         <input className="input-field md:col-span-2" placeholder="City (optional)" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
@@ -511,8 +580,8 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
         </select>
         <div className="md:col-span-6 flex items-center gap-2 flex-wrap">
           {form.type !== 'blockedRoute' && (
-            <button 
-              type="button" 
+            <button
+              type="button"
               className={`button-secondary ${quickAddMode ? 'bg-green-100 text-green-800 border-green-300' : ''}`}
               onClick={() => setQuickAddMode(!quickAddMode)}
             >
@@ -524,9 +593,9 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
               setDrawMode(d => !d);
             }}>{drawMode ? 'Stop Drawing' : 'Start Draw'}</button>
           )}
-          <button type="button" className="button-secondary" onClick={() => { 
-            setPolygonPoints([]); 
-            setPointMarker(null); 
+          <button type="button" className="button-secondary" onClick={() => {
+            setPolygonPoints([]);
+            setPointMarker(null);
           }}>{'Clear'}</button>
           <button className="button-primary" type="submit" disabled={loading}>{loading ? 'Saving...' : 'Add Overlay (Manual)'}</button>
         </div>
@@ -561,11 +630,11 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
               if (data && data.length > 0) {
                 const place = data[0];
                 setLastPlace(place);
-                
+
                 // Calculate bounds and center - let MapController handle the map movement
                 let bounds = null;
                 let center = null;
-                
+
                 if (place.boundingbox) {
                   const south = parseFloat(place.boundingbox[0]);
                   const north = parseFloat(place.boundingbox[1]);
@@ -579,7 +648,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                   center = [lat, lon];
                   bounds = [[lat - 0.02, lon - 0.02], [lat + 0.02, lon + 0.02]];
                 }
-                
+
                 if (bounds && center) {
                   // Set bounds - MapController will handle the map movement
                   setAreaBounds(bounds);
@@ -590,7 +659,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                     setFocusedMarker(null);
                   }, 3000);
                   setAreaFocused(true);
-                  
+
                   // Fill city/state from place.address when available
                   const addr = place.address || {};
                   const city = addr.city || addr.town || addr.village || addr.county || '';
@@ -621,7 +690,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
               const place = lastPlace;
               let bounds = null;
               let center = null;
-              
+
               if (place.boundingbox) {
                 const south = parseFloat(place.boundingbox[0]);
                 const north = parseFloat(place.boundingbox[1]);
@@ -635,7 +704,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                 center = [lat, lon];
                 bounds = [[lat - 0.02, lon - 0.02], [lat + 0.02, lon + 0.02]];
               }
-              
+
               if (bounds && center) {
                 setAreaBounds(bounds);
                 setFocusedMarker(center);
@@ -647,26 +716,26 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
               alert('Force focus failed — see console');
             }
           }}>{'Force Focus'}</button>
-          <button type="button" className="button-secondary" onClick={() => { 
-            setAreaFocused(false); 
+          <button type="button" className="button-secondary" onClick={() => {
+            setAreaFocused(false);
             setAreaBounds(null);
             setFocusedMarker(null);
-            setPolygonPoints([]); 
-            setPointMarker(null); 
+            setPolygonPoints([]);
+            setPointMarker(null);
           }}>{'Reset Area'}</button>
         </div>
-        <div style={{ height: 300 }} className="rounded overflow-hidden">
+        <div style={{ height: 750 }} className="rounded overflow-hidden">
           <MapContainer center={defaultCenter} zoom={5} style={{ height: '100%', width: '100%' }} whenCreated={(m) => { mapRef.current = m }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            <MapClickHandler 
-              mode={form.type === 'blockedRoute' && drawMode ? 'blockedRoute' : (form.type === 'blockedRoute' ? 'none' : 'point')} 
+            <MapClickHandler
+              mode={form.type === 'blockedRoute' && drawMode ? 'blockedRoute' : (form.type === 'blockedRoute' ? 'none' : 'point')}
               quickAdd={quickAddMode && form.type !== 'blockedRoute'}
             />
             <MapController areaBounds={areaBounds} focusedMarker={focusedMarker} onFocused={handleMapFocused} onLog={pushMapLog} />
             {/* show focused area rectangle when available */}
             {areaBounds && (
               <>
-                <Polygon positions={[[areaBounds[0][0], areaBounds[0][1]],[areaBounds[0][0], areaBounds[1][1]],[areaBounds[1][0], areaBounds[1][1]],[areaBounds[1][0], areaBounds[0][1]]]} pathOptions={{ color: 'blue', dashArray: '4', weight: 2, fillOpacity: 0.05 }} />
+                <Polygon positions={[[areaBounds[0][0], areaBounds[0][1]], [areaBounds[0][0], areaBounds[1][1]], [areaBounds[1][0], areaBounds[1][1]], [areaBounds[1][0], areaBounds[0][1]]]} pathOptions={{ color: 'blue', dashArray: '4', weight: 2, fillOpacity: 0.05 }} />
               </>
             )}
             {/* show polygon points if drawing or existing */}
@@ -686,23 +755,25 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                 const [lng, lat] = item.geometry.coordinates;
                 // Color scheme matching Heatmap component
                 const colorMap = {
-                  shelter: { color: '#2563eb', fillColor: '#93c5fd' },
-                  medicalCamp: { color: '#16a34a', fillColor: '#86efac' },
-                  depot: { color: '#7c3aed', fillColor: '#c4b5fd' },
-                  blockedRoute: { color: '#dc2626', fillColor: '#fecaca' },
-                  advisory: { color: '#f59e0b', fillColor: '#fde68a' }
+                  shelter: '#2563eb',
+                  medicalCamp: '#16a34a',
+                  depot: '#7c3aed',
+                  blockedRoute: '#dc2626',
+                  advisory: '#f59e0b'
                 };
-                const colors = colorMap[item.type] || { color: '#6b7280', fillColor: '#d1d5db' };
+                const color = colorMap[item.type] || '#6b7280';
+                const createDotIcon = (color, size = 12) => window.L.divIcon({
+                  className: '',
+                  html: `<span class="resource-dot" style="--dot-color:${color};width:${size}px;height:${size}px"><span class="resource-core"></span></span>`,
+                  iconSize: [size, size],
+                  iconAnchor: [Math.round(size / 2), Math.round(size / 2)]
+                });
+
                 return (
-                  <CircleMarker 
-                    key={item._id} 
-                    center={[lat, lng]} 
-                    radius={10} 
-                    pathOptions={{ 
-                      color: colors.color, 
-                      fillColor: colors.fillColor, 
-                      fillOpacity: 0.7 
-                    }}
+                  <Marker
+                    key={item._id}
+                    position={[lat, lng]}
+                    icon={createDotIcon(color, 12)}
                   >
                     <Popup>
                       <div>
@@ -714,7 +785,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                         {item.properties?.state && <div>State: {item.properties.state}</div>}
                       </div>
                     </Popup>
-                  </CircleMarker>
+                  </Marker>
                 );
               } else if (item.geometry?.type === 'Polygon' && item.geometry?.coordinates) {
                 const ring = item.geometry.coordinates[0] || [];
@@ -777,12 +848,71 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                 <div className="text-xs text-gray-500">Blocked area: polygon with {item.geometry.coordinates[0].length} vertices</div>
               )}
             </div>
-            <div className="mt-3">
-              <button className="button-secondary" onClick={() => onDelete(item._id)}>Delete</button>
-            </div>
+              <div className="mt-3">
+                <div className="flex gap-2">
+                  <button className="button-secondary" onClick={() => openEdit(item)}>Edit</button>
+                </div>
+              </div>
           </div>
         ))}
       </div>
+        {/* Edit modal */}
+        {editingItem && editForm && (
+          <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 99999, background: 'rgba(0,0,0,0.45)' }}>
+            <div className="bg-white rounded-lg p-6 w-full max-w-lg" style={{ boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
+              <h3 className="text-lg font-semibold mb-3">Edit Overlay</h3>
+              <div className="grid grid-cols-1 gap-2 mb-3">
+                <input className="input-field" value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Name" />
+                <select className="input-field" value={editForm.status} onChange={(e) => setEditForm(f => ({ ...f, status: e.target.value }))}>
+                  <option value="open">Open</option>
+                  <option value="closed">Closed</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <input className="input-field" value={editForm.capacity || ''} onChange={(e) => setEditForm(f => ({ ...f, capacity: e.target.value }))} placeholder="Capacity" />
+                <div className="flex gap-2">
+                  <input className="input-field" value={editForm.city || ''} onChange={(e) => setEditForm(f => ({ ...f, city: e.target.value }))} placeholder="City" />
+                  <input className="input-field" value={editForm.state || ''} onChange={(e) => setEditForm(f => ({ ...f, state: e.target.value }))} placeholder="State" />
+                </div>
+                {editForm.geometry && editForm.geometry.type === 'Point' && (
+                  <div className="flex gap-2">
+                    <input className="input-field" value={Number(editForm.lat ?? '')} onChange={(e) => setEditForm(f => ({ ...f, lat: e.target.value }))} placeholder="Latitude" />
+                    <input className="input-field" value={Number(editForm.lng ?? '')} onChange={(e) => setEditForm(f => ({ ...f, lng: e.target.value }))} placeholder="Longitude" />
+                  </div>
+                )}
+                {(!editForm.geometry || editForm.geometry.type === 'Polygon') && (
+                  <div className="text-xs text-gray-600">Polygon geometry editing not supported in modal. To change polygon, delete and recreate or use map draw.</div>
+                )}
+              </div>
+              <div className="flex justify-between items-center gap-2">
+                <div className="flex gap-2">
+                  <button
+                    className="button-danger"
+                    onClick={async () => {
+                      if (!window.confirm('Delete this overlay? This action cannot be undone.')) return;
+                      try {
+                        setLoading(true);
+                        await deleteOverlay(editForm.id);
+                        await load();
+                        if (onOverlayChange) onOverlayChange();
+                        closeEdit();
+                      } catch (e) {
+                        console.error('Failed to delete overlay', e);
+                        alert('Failed to delete overlay');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >Delete</button>
+                </div>
+                <div className="flex gap-2">
+                  <button className="button-secondary" onClick={() => closeEdit()}>Cancel</button>
+                  <button className="button-primary" onClick={() => saveEdit()} disabled={loading}>{loading ? 'Saving...' : 'Save'}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 };

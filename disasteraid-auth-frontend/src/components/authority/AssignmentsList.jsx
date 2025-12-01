@@ -17,7 +17,9 @@ const AssignmentsList = () => {
         const res = await getMapData();
         if (!mounted) return;
         if (res && res.success && res.tickets && res.tickets.type === 'FeatureCollection') {
-          setTickets(res.tickets.features || []);
+            // Exclude SoS tickets from assignments list
+            const feats = (res.tickets.features || []).filter(f => !(f.properties && f.properties.isSOS));
+            setTickets(feats);
         } else {
           setTickets([]);
         }
@@ -45,45 +47,51 @@ const AssignmentsList = () => {
       )}
 
       {!loading && tickets.length > 0 && (
-        <div className="overflow-auto max-h-[60vh]">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-500">
-                <th className="pb-2">Ticket</th>
-                <th className="pb-2">Created</th>
-                <th className="pb-2">Help Types</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2">Assigned NGO</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tickets.map(f => {
-                const p = f.properties || {};
-                const assigned = p.assignedTo || null;
-                const isOpen = selectedTicketId === p.ticketId;
-                return (
-                  <React.Fragment key={p.ticketId}>
-                    <tr className={`border-t hover:bg-gray-50 cursor-pointer ${isOpen ? 'bg-gray-50' : ''}`} onClick={() => setSelectedTicketId(prev => prev === p.ticketId ? null : p.ticketId)}>
-                      <td className="py-2 font-medium text-blue-700 underline">{p.ticketId}</td>
-                      <td className="py-2 text-xs text-gray-600">{p.createdAt ? new Date(p.createdAt).toLocaleString() : '-'}</td>
-                      <td className="py-2">{(p.helpTypes || []).join(', ') || '-'}</td>
-                      <td className="py-2">{p.status || 'unknown'}</td>
-                      <td className="py-2">{assigned ? <div><div className="font-medium">{assigned.organizationName}</div><div className="text-xs text-gray-500">{assigned.phone} • {assigned.location}</div></div> : <span className="text-gray-500">Unassigned</span>}</td>
-                    </tr>
+        <div className="space-y-4">
+          {tickets.map(f => {
+            const p = f.properties || {};
+            const assigned = p.assignedTo || null;
+            const isOpen = selectedTicketId === p.ticketId;
+            const toggle = () => setSelectedTicketId(prev => prev === p.ticketId ? null : p.ticketId);
+            const st = p.status || 'unknown';
+            const stl = String(st).toLowerCase();
+            let cls = 'badge-status';
+            if (['new','active','open'].includes(stl)) cls += ' active';
+            else if (['matched','assigned','accepted'].includes(stl)) cls += ' matched';
+            else if (['closed','resolved','canceled','fulfilled','completed'].includes(stl)) cls += ' closed';
 
-                    {/* Inline detail row that expands/collapses */}
-                    <tr className={`detail-row ${isOpen ? 'open' : ''}`}>
-                      <td colSpan={5} className="p-0 border-0">
-                        <div className="detail-container">
-                          {isOpen && <TicketDetail ticketId={p.ticketId} onClose={() => setSelectedTicketId(null)} />}
-                        </div>
-                      </td>
-                    </tr>
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+            return (
+              <div key={p.ticketId} className={`sos-card ${isOpen ? 'open' : ''}`}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  className="sos-card-header"
+                  onClick={toggle}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
+                >
+                  <div className="sos-card-meta">
+                    <div>
+                      <p className="sos-card-title">{p.ticketId}</p>
+                      <p className="sos-card-sub">{p.createdAt ? new Date(p.createdAt).toLocaleString() : '-'}</p>
+                    </div>
+                    <div className="sos-card-right">
+                      <span className={cls}>{st}</span>
+                      <div style={{marginLeft: '0.5rem'}}>
+                        {assigned ? <div className="text-sm font-medium">{assigned.organizationName}</div> : <div className="text-sm text-gray-500">Unassigned</div>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {isOpen && (
+                  <div className="sos-card-body">
+                    <TicketDetail ticketId={p.ticketId} onClose={() => setSelectedTicketId(null)} showIsSOS={false} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

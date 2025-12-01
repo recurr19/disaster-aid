@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import './authority.css';
 import { getTrackerStatus } from '../../api/tracker';
 
-const TicketDetail = ({ ticketId, onClose }) => {
+const TicketDetail = ({ ticketId, onClose, compact = false, showIsSOS = true }) => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -43,71 +43,102 @@ const TicketDetail = ({ ticketId, onClose }) => {
 
         {data && data.ticket && (
           <div>
-            <div className="mb-3">
-              <div><strong>Ticket ID:</strong> {data.ticket.ticketId}</div>
-              <div><strong>Status:</strong> {data.ticket.status}</div>
-              <div><strong>Is SOS:</strong> {data.ticket.isSOS ? 'Yes' : 'No'}</div>
-              <div><strong>Created:</strong> {new Date(data.ticket.createdAt).toLocaleString()}</div>
-            </div>
-            <div className="mb-3">
-              <h4 className="font-medium">Reporter & Location</h4>
-              <div><strong>Name:</strong> {data.ticket.name || '—'}</div>
-              <div><strong>Phone:</strong> {data.ticket.phone || '—'}</div>
-              <div><strong>Address:</strong> {data.ticket.address || '—'}</div>
-              <div><strong>Landmark:</strong> {data.ticket.landmark || '—'}</div>
-              {data.ticket.locationGeo && data.ticket.locationGeo.coordinates && (
-                <div className="text-xs text-gray-500">Geo: {data.ticket.locationGeo.coordinates.join(', ')}</div>
-              )}
-            </div>
-
-            <div className="mb-3">
-              <h4 className="font-medium">Assigned To</h4>
-              {data.ticket.assignedTo ? (
+            {compact ? (
+              <div className="mb-3">
+                <div><strong>Ticket ID:</strong> {data.ticket.ticketId}</div>
+                <div><strong>Status:</strong> {data.ticket.status}</div>
                 <div>
-                  <div className="font-medium">{data.ticket.assignedTo.organizationName}</div>
-                  <div className="text-xs text-gray-500">{data.ticket.assignedTo.phone} • {data.ticket.assignedTo.location}</div>
+                  <strong>Created:</strong> {new Date(data.ticket.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })} {new Date(data.ticket.createdAt).toLocaleTimeString(undefined, { hour12: false, hour: '2-digit', minute: '2-digit' })}
                 </div>
-              ) : (
-                <div className="text-gray-500">Unassigned</div>
-              )}
-            </div>
+                {/* human-readable location */}
+                {((data.ticket.assignedTo && data.ticket.assignedTo.location) || data.ticket.address || data.ticket.landmark) && (
+                  <div><strong>Location:</strong> {data.ticket.assignedTo?.location || data.ticket.address || data.ticket.landmark}</div>
+                )}
+                {/* coordinates */}
+                {data.ticket.locationGeo && data.ticket.locationGeo.coordinates && (
+                  <div><strong>Coordinates:</strong> {data.ticket.locationGeo.coordinates.join(', ')}</div>
+                )}
+                <div><strong>Name:</strong> {data.ticket.name || '—'}</div>
+                <div><strong>Phone:</strong> {data.ticket.phone || '—'}</div>
+                {data.ticket.assignedTo && (['matched','assigned','accepted'].includes(String(data.ticket.status || '').toLowerCase())) && (
+                  <div className="ticket-compact mt-2">
+                    <div className="text-sm font-medium">Assigned NGO</div>
+                    <div className="text-sm">{data.ticket.assignedTo.organizationName || data.ticket.assignedTo.name}</div>
+                    <div className="text-xs text-gray-500">{data.ticket.assignedTo.phone || ''} {data.ticket.assignedTo.location ? `• ${data.ticket.assignedTo.location}` : ''}</div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <div className="mb-3">
+                    <div><strong>Ticket ID:</strong> {data.ticket.ticketId}</div>
+                    <div><strong>Status:</strong> {data.ticket.status}</div>
+                    {showIsSOS && (
+                      <div><strong>Is SOS:</strong> {data.ticket.isSOS ? 'Yes' : 'No'}</div>
+                    )}
+                    <div><strong>Created:</strong> {new Date(data.ticket.createdAt).toLocaleString()}</div>
+                    <div><strong>Help Types:</strong> {(data.ticket.helpTypes || []).length > 0 ? (data.ticket.helpTypes || []).join(', ') : '—'}</div>
+                </div>
+                <div className="mb-3">
+                  <h4 className="font-medium">Reporter & Location</h4>
+                  <div><strong>Name:</strong> {data.ticket.name || '—'}</div>
+                  <div><strong>Phone:</strong> {data.ticket.phone || '—'}</div>
+                  <div><strong>Address:</strong> {data.ticket.address || '—'}</div>
+                  <div><strong>Landmark:</strong> {data.ticket.landmark || '—'}</div>
+                  {data.ticket.locationGeo && data.ticket.locationGeo.coordinates && (
+                    <div><strong>Coordinates:</strong> {data.ticket.locationGeo.coordinates.join(', ')}</div>
+                  )}
+                </div>
 
-            <div className="mb-3">
-              <h4 className="font-medium">Assignment History</h4>
-              {Array.isArray(data.ticket.assignmentHistory) && data.ticket.assignmentHistory.length > 0 ? (
-                <ul className="text-sm">
-                  {data.ticket.assignmentHistory.map((h, idx) => (
-                    <li key={idx} className="py-1 border-b">{new Date(h.assignedAt).toLocaleString()} — {h.note || 'Update'}</li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="text-sm text-gray-500">No assignment history.</div>
-              )}
-            </div>
+                <div className="mb-3">
+                  <h4 className="font-medium">Assigned To</h4>
+                  {data.ticket.assignedTo ? (
+                    <div>
+                      <div className="font-medium">{data.ticket.assignedTo.organizationName}</div>
+                      <div className="text-xs text-gray-500">{data.ticket.assignedTo.phone} • {data.ticket.assignedTo.location}</div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500">Unassigned</div>
+                  )}
+                </div>
 
-            <div className="mb-3">
-              <h4 className="font-medium">Proposed Matches</h4>
-              {Array.isArray(data.assignments) && data.assignments.length > 0 ? (
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs text-gray-500"><th>NGO</th><th>Score</th><th>ETA</th><th>Status</th></tr>
-                  </thead>
-                  <tbody>
-                    {data.assignments.map(a => (
-                      <tr key={a.assignmentId} className="border-t">
-                        <td className="py-2">{a.ngo?.organizationName || 'Unknown'}</td>
-                        <td className="py-2">{a.score != null ? Math.round(a.score) : '-'}</td>
-                        <td className="py-2">{a.etaMinutes != null ? `${a.etaMinutes} min` : '-'}</td>
-                        <td className="py-2">{a.status}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="text-sm text-gray-500">No proposals found.</div>
-              )}
-            </div>
+                <div className="mb-3">
+                  <h4 className="font-medium">Assignment History</h4>
+                  {Array.isArray(data.ticket.assignmentHistory) && data.ticket.assignmentHistory.length > 0 ? (
+                    <ul className="text-sm">
+                      {data.ticket.assignmentHistory.map((h, idx) => (
+                        <li key={idx} className="py-1 border-b">{new Date(h.assignedAt).toLocaleString()} — {h.note || 'Update'}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="text-sm text-gray-500">No assignment history.</div>
+                  )}
+                </div>
 
+                <div className="mb-3">
+                  <h4 className="font-medium">Proposed Matches</h4>
+                  {Array.isArray(data.assignments) && data.assignments.length > 0 ? (
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-500"><th>NGO</th><th>Score</th><th>ETA</th><th>Status</th></tr>
+                      </thead>
+                      <tbody>
+                        {data.assignments.map(a => (
+                          <tr key={a.assignmentId} className="border-t">
+                            <td className="py-2">{a.ngo?.organizationName || 'Unknown'}</td>
+                            <td className="py-2">{a.score != null ? Math.round(a.score) : '-'}</td>
+                            <td className="py-2">{a.etaMinutes != null ? `${a.etaMinutes} min` : '-'}</td>
+                            <td className="py-2">{a.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="text-sm text-gray-500">No proposals found.</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

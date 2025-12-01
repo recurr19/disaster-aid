@@ -10,6 +10,7 @@ import Heatmap from './Heatmap';
 import './authority.css';
 import AppHeader from '../common/AppHeader';
 import API from '../../api/axios';
+import { connectRealtime } from '../../api/realtime';
 
 const TABS = [
   { id: 'overview', label: 'Crisis Overview', icon: Activity },
@@ -32,21 +33,78 @@ const AuthorityDashboard = ({ user, onLogout }) => {
   const refreshMapData = useCallback(async () => {
     try {
       setLoadingMap(true);
-      const res = await API.get('/authority/map');
-      if (res.data?.success) {
-        const ticketsFC = res.data.tickets || { type: 'FeatureCollection', features: [] };
-        const overlays = res.data.overlays || {};
-        const newMapData = { tickets: ticketsFC, overlays };
-        setMapData(newMapData);
-        const points = (ticketsFC.features || []).map(f => {
-          const coords = f.geometry?.coordinates;
-          if (!coords || coords.length < 2) return null;
-          const [lng, lat] = coords;
-          return { lat, lng, intensity: f.properties?.isSOS ? 0.95 : 0.4, props: f.properties };
-        }).filter(Boolean);
-        setHeatPoints(points);
-        setSOSCount((ticketsFC.features || []).filter(f => f.properties?.isSOS).length);
-        return newMapData;
+      // Prefer the authority-specific combined endpoint (tickets + overlays)
+      try {
+        const res = await API.get('/authority/map');
+        if (res.data?.success) {
+          const ticketsFC = res.data.tickets || { type: 'FeatureCollection', features: [] };
+          const overlays = res.data.overlays || {};
+          // Only include active tickets in map/heat calculations
+          const activeFeatures = (ticketsFC.features || []).filter(f => {
+            const status = f.properties && f.properties.status ? String(f.properties.status).toLowerCase() : '';
+            return status !== 'closed' && status !== 'resolved' && status !== 'canceled';
+          });
+          const newMapData = { tickets: { type: 'FeatureCollection', features: activeFeatures }, overlays };
+          setMapData(newMapData);
+          const points = activeFeatures.map(f => {
+            const coords = f.geometry?.coordinates;
+            if (!coords || coords.length < 2) return null;
+            const [lng, lat] = coords;
+            return { lat, lng, intensity: f.properties?.isSOS ? 0.95 : 0.4, props: f.properties };
+          }).filter(Boolean);
+          setHeatPoints(points);
+          setSOSCount(activeFeatures.filter(f => f.properties?.isSOS).length);
+          // If authority endpoint returned data, use it and return early
+          if ((ticketsFC.features || []).length > 0) return newMapData;
+        }
+      } catch (err) {
+        // If '/authority/map' fails (403 when not an authority, network, etc.), we'll fallback below
+        console.warn('Authority /map fetch failed, falling back to /tickets:', err?.message || err);
+      }
+
+      // Fallback: fetch tickets like other dashboards do. This helps when the current user
+      // isn't authorized for the authority-specific endpoint or when overlays are not available.
+      try {
+        const resTickets = await API.get('/tickets');
+          if (resTickets.data && resTickets.data.success) {
+          const tickets = resTickets.data.tickets || [];
+          const features = tickets.map(t => {
+            // tickets from /tickets are not GeoJSON; convert if they have location fields
+            const coords = t.locationGeo?.coordinates || (t.longitude && t.latitude ? [t.longitude, t.latitude] : null);
+            const geometry = coords ? { type: 'Point', coordinates: coords } : null;
+            return {
+              type: 'Feature',
+              geometry,
+              properties: {
+                ticketId: t.ticketId,
+                status: t.status,
+                isSOS: !!t.isSOS,
+                helpTypes: t.helpTypes,
+                createdAt: t.createdAt,
+                assignedTo: t.assignedTo
+              }
+            };
+          }).filter(f => f.geometry && Array.isArray(f.geometry.coordinates));
+
+          // filter to active tickets only
+          const activeFeatures = features.filter(f => {
+            const status = f.properties && f.properties.status ? String(f.properties.status).toLowerCase() : '';
+            return status !== 'closed' && status !== 'resolved' && status !== 'canceled';
+          });
+
+          const ticketsFC = { type: 'FeatureCollection', features: activeFeatures };
+          const newMapData = { tickets: ticketsFC, overlays: {} };
+          setMapData(newMapData);
+          const points = activeFeatures.map(f => {
+            const [lng, lat] = f.geometry.coordinates;
+            return { lat, lng, intensity: f.properties?.isSOS ? 0.95 : 0.4, props: f.properties };
+          });
+          setHeatPoints(points);
+          setSOSCount(points.filter(p => p.props?.isSOS).length);
+          return newMapData;
+        }
+      } catch (err) {
+        console.warn('Fallback /tickets fetch failed:', err?.message || err);
       }
     } catch (e) {
       console.error('AuthorityDashboard: map load failed', e);
@@ -60,10 +118,38 @@ const AuthorityDashboard = ({ user, onLogout }) => {
     refreshMapData();
   }, [refreshMapData]);
 
-  // No DB fetch for now. Use static/demo values to mimic prototype counts.
+  // Realtime + polling: auto-refresh map data when relevant events occur
   useEffect(() => {
-    setSOSCount(5);
-  }, []);
+    const s = connectRealtime();
+    const refresh = () => {
+      try { refreshMapData(); } catch (e) { console.warn('refreshMapData failed on realtime event', e); }
+    };
+
+    // Listen to common events emitted by the backend
+    s.on('connect', refresh);
+    s.on('ticket:created', refresh);
+    s.on('assignment:accepted', refresh);
+    s.on('assignment:proposed', refresh);
+    s.on('overlays:changed', refresh);
+
+    // Polling fallback for environments where realtime may not reach us
+    const intervalId = setInterval(() => {
+      refreshMapData();
+    }, 30000); // every 30s
+
+    return () => {
+      try {
+        s.off('connect', refresh);
+        s.off('ticket:created', refresh);
+        s.off('assignment:accepted', refresh);
+        s.off('assignment:proposed', refresh);
+        s.off('overlays:changed', refresh);
+      } catch (e) { /* ignore */ }
+      clearInterval(intervalId);
+    };
+  }, [refreshMapData]);
+
+  // Remove demo override of SOS count so real data is used
 
   const handleLogout = () => {
     if (onLogout) onLogout();
