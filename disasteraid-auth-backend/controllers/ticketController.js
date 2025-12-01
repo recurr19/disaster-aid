@@ -28,13 +28,27 @@ const submitHelpRequest = async (req, res) => {
     const totalBeneficiaries = (parseInt(data.adults || 0) || 0) + (parseInt(data.children || 0) || 0) + (parseInt(data.elderly || 0) || 0);
 
     // Auto-triage / SoS detection rules
+    // NOTE: only apply automatic heuristic checks (keywords, battery/network, medical) when
+    // the submission comes from the public urgent request form (`fromUrgentForm` flag).
+    // For other citizen submissions, only an explicit isSOS flag should mark it as SOS.
     const text = `${data.description || ''}`.toLowerCase();
     const sosKeywords = ['sos','urgent','life-threatening','trapped','injured','bleeding','no food','no water','stranded','stuck','collapsed','flooded','unconscious'];
     const hasSOSKeyword = sosKeywords.some(k => text.includes(k));
     const lowBattery = (parseInt(data.batteryLevel || 0) || 0) <= 20;
     const poorNetwork = (parseInt(data.networkStrength || 0) || 0) <= 20;
     const medicalCritical = normalizedHelpTypes.includes('medical');
-    const derivedSOS = !!data.isSOS || hasSOSKeyword || medicalCritical || (lowBattery && poorNetwork);
+
+    let derivedSOS = false;
+    if (data && (data.isSOS === true || data.isSOS === 'true' || data.isSOS === '1' || data.isSOS === 1)) {
+      // Explicit SOS checkbox from frontend should always be respected
+      derivedSOS = true;
+    } else if (req.body && req.body.fromUrgentForm) {
+      // Only apply heuristic rules for submissions coming from the urgent public form
+      derivedSOS = hasSOSKeyword || medicalCritical || (lowBattery && poorNetwork);
+    } else {
+      // Non-urgent/public flows: do not auto-mark SOS based on heuristics
+      derivedSOS = false;
+    }
 
     // Priority scoring (simple heuristic)
     let priorityScore = 0;
@@ -204,7 +218,10 @@ const submitPublicHelpRequest = async (req, res) => {
   try {
     req.user = null;
     if (!req.body) req.body = {};
+    // Mark this request as coming from the public urgent request form
+    // so the server can apply stricter SOS/triage heuristics only for this flow.
     if (!req.body.channel) req.body.channel = 'web';
+    req.body.fromUrgentForm = true;
     return await submitHelpRequest(req, res);
   } catch (e) {
     console.error('submitPublicHelpRequest error:', e);
