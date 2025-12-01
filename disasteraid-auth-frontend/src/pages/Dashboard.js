@@ -451,8 +451,18 @@ const Dashboard = () => {
           });
           setTickets(Array.from(uniq.values()));
         } else {
-          const res = await API.get('/tickets', { params: { status: 'completed' }, signal: controller.signal });
-          setTickets(Array.isArray(res.data?.tickets) ? res.data.tickets : []);
+          const [resCompleted, resClosed] = await Promise.all([
+            API.get('/tickets', { params: { status: 'completed' }, signal: controller.signal }),
+            API.get('/tickets', { params: { status: 'closed' }, signal: controller.signal }),
+          ]);
+          const listCompleted = Array.isArray(resCompleted.data?.tickets) ? resCompleted.data.tickets : [];
+          const listClosed = Array.isArray(resClosed.data?.tickets) ? resClosed.data.tickets : [];
+          const uniqPast = new Map();
+          [...listCompleted, ...listClosed].forEach(t => {
+            const key = t.id || t.ticketId;
+            if (key && !uniqPast.has(key)) uniqPast.set(key, t);
+          });
+          setTickets(Array.from(uniqPast.values()));
         }
       } catch (e) {
         if (e.name !== 'CanceledError') {
