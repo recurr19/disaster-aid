@@ -56,7 +56,23 @@ const submitHelpRequest = async (req, res) => {
     priorityScore += totalBeneficiaries >= 10 ? 10 : 0;
     priorityScore += lowBattery ? 5 : 0;
     priorityScore += poorNetwork ? 5 : 0;
-    const triageLevel = priorityScore >= 30 ? 'critical' : priorityScore >= 20 ? 'high' : priorityScore >= 10 ? 'medium' : 'low';
+    
+    // Additional priority boost for urgent public form submissions with explicit SOS
+    if (req.body.fromUrgentForm && derivedSOS) {
+      priorityScore += 20; // Extra boost for urgent form SOS requests
+    }
+    
+    // Additional priority for high beneficiary count (catastrophic scenario)
+    if (totalBeneficiaries >= 50) {
+      priorityScore += 15; // Major incident with many people
+    }
+    
+    // Medical emergency gets extra priority
+    if (medicalCritical && derivedSOS) {
+      priorityScore += 10; // Medical + SOS = maximum urgency
+    }
+    
+    const triageLevel = priorityScore >= 50 ? 'critical' : priorityScore >= 30 ? 'high' : priorityScore >= 10 ? 'medium' : 'low';
 
     const ticketPayload = {
       ...data,

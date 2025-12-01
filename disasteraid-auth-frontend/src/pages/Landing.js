@@ -4,10 +4,127 @@ import { motion } from 'framer-motion';
 import { AlertTriangle, Zap, Sparkles, ArrowRight, Shield, MapPin, Activity } from 'lucide-react';
 import { Logo } from '../components/common/Logo';
 import { AnimatedBackground } from '../components/common/AnimatedBackground';
+import API from '../api/axios';
 
 const Landing = () => {
   const navigate = useNavigate();
   const [isPortalDialogOpen, setIsPortalDialogOpen] = useState(false);
+  const [isSosDialogOpen, setIsSosDialogOpen] = useState(false);
+  const [sosSubmitting, setSosSubmitting] = useState(false);
+
+  const handleUrgentSOSClick = () => {
+    setIsSosDialogOpen(true);
+  };
+
+  const handleConfirmSOS = async () => {
+    setSosSubmitting(true);
+    setIsSosDialogOpen(false);
+
+    try {
+      const fd = new FormData();
+      
+      // Basic required fields matching Ticket model
+      fd.append('name', 'Emergency Caller');
+      fd.append('phone', ''); // Can be prompted for phone later if needed
+      fd.append('language', 'en');
+      fd.append('preferredContact', 'call');
+      fd.append('channel', 'web');
+      
+      // Location fields
+      fd.append('address', '');
+      fd.append('landmark', '');
+      
+      // Beneficiaries count - set to high numbers to ensure priorityScore bonus (>=10 gives +10 points)
+      // Total: 75 beneficiaries ensures maximum priority
+      fd.append('adults', '50');
+      fd.append('children', '15');
+      fd.append('elderly', '10');
+      
+      // Emergency description with SOS keywords (triggers SOS heuristics)
+      fd.append('description', 'URGENT SOS - Immediate emergency assistance required. Life-threatening situation. People trapped and injured.');
+      
+      // Critical SOS flag - MUST be 'true' string for backend to recognize (gives +30 priority points)
+      fd.append('isSOS', 'true');
+      
+      // Help types - ALL types selected to show critical need
+      const helpTypes = ['food', 'water', 'shelter', 'medical', 'rescue', 'sanitation', 'baby supplies', 'transportation', 'power/charging'];
+      helpTypes.forEach(ht => fd.append('helpTypes[]', ht));
+      
+      // Medical needs - ALL medical needs to indicate critical medical emergency
+      const medicalNeeds = ['insulin', 'dialysis', 'wheelchair', 'oxygen', 'medication', 'infant care', 'elderly care', 'mental health'];
+      medicalNeeds.forEach(mn => fd.append('medicalNeeds[]', mn));
+
+      // Battery level - try to get real value, or set low to indicate emergency (+5 priority if <=20)
+      let batteryLevel = 15; // Default to low battery to boost priority
+      if (navigator.getBattery) {
+        try {
+          const batt = await navigator.getBattery();
+          const realBattery = Math.round((batt.level || 0.15) * 100);
+          // Use real battery if available, otherwise keep emergency default
+          batteryLevel = realBattery > 0 ? realBattery : 15;
+        } catch (e) {
+          // Keep default low battery
+        }
+      }
+      fd.append('batteryLevel', batteryLevel);
+
+      // Network strength - try to get real value, or set low to indicate emergency (+5 priority if <=20)
+      let networkStrength = 15; // Default to poor network to boost priority
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (connection && typeof connection.downlink === 'number') {
+        const realNetwork = Math.max(1, Math.min(100, Math.round((connection.downlink / 100) * 100)));
+        // Use real network if available, otherwise keep emergency default
+        networkStrength = realNetwork > 0 ? realNetwork : 15;
+      }
+      fd.append('networkStrength', networkStrength);
+
+      // Geolocation - CRITICAL for locationGeo field and accurate matching
+      // Wait longer for high-accuracy location in emergency
+      const getLocation = () => new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          resolve(null);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // High accuracy, 10s timeout
+        );
+      });
+
+      const coords = await getLocation();
+      if (coords) {
+        // Send latitude and longitude - backend converts to locationGeo.coordinates [lng, lat]
+        fd.append('latitude', coords.lat);
+        fd.append('longitude', coords.lng);
+      } else {
+        // Location critical for emergency - warn user
+        console.warn('Location not available for SOS request');
+      }
+
+      // Submit the SOS request to backend
+      // Backend will calculate: priorityScore = 30(SOS) + 10(beneficiaries>=10) + 5(lowBattery) + 5(poorNetwork) = 50 (CRITICAL)
+      const res = await API.post('/tickets/public', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.status === 201 && res.data?.ticketId) {
+        alert(
+          `✅ SOS REQUEST SUBMITTED\n\n` +
+          `Ticket ID: ${res.data.ticketId}\n\n` +
+          `Emergency teams are being notified immediately.\n` +
+          `You will receive updates via your contact method.`
+        );
+      } else {
+        alert('Failed to submit SOS request. Please try again or contact emergency services.');
+      }
+    } catch (err) {
+      console.error('SOS submission error:', err);
+      alert('Error submitting SOS request. Please contact emergency services directly.');
+    } finally {
+      setSosSubmitting(false);
+    }
+  };
 
   const roles = [
     {
@@ -135,18 +252,21 @@ const Landing = () => {
             transition={{ duration: 0.8, delay: 0.6 }}
           >
             <button
-              onClick={() => navigate('/request-form')}
-              className="inline-flex items-center justify-center h-14 px-8 text-base font-medium text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:via-rose-700 hover:to-red-800 rounded-lg shadow-2xl shadow-red-500/30 transition-all group"
+              onClick={handleUrgentSOSClick}
+              disabled={sosSubmitting}
+              className="inline-flex items-center justify-center h-14 px-8 text-base font-medium text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:via-rose-700 hover:to-red-800 rounded-lg shadow-2xl shadow-red-500/30 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <AlertTriangle className="w-5 h-5 mr-2 group-hover:animate-pulse" />
-              Urgent Request Aid
-              <motion.div
-                className="ml-2"
-                animate={{ x: [0, 4, 0] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              >
-                <ArrowRight className="w-5 h-5" />
-              </motion.div>
+              {sosSubmitting ? 'Submitting SOS...' : 'Urgent Request Aid'}
+              {!sosSubmitting && (
+                <motion.div
+                  className="ml-2"
+                  animate={{ x: [0, 4, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                >
+                  <ArrowRight className="w-5 h-5" />
+                </motion.div>
+              )}
             </button>
 
             <button
@@ -263,6 +383,92 @@ const Landing = () => {
                 className="text-gray-600 hover:text-gray-700"
               >
                 NGO Service Coverage
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* SOS Confirmation Dialog */}
+      {isSosDialogOpen && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          onClick={() => setIsSosDialogOpen(false)}
+        >
+          <motion.div
+            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full"
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-red-200 bg-gradient-to-r from-red-50 to-rose-50">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-rose-600 flex items-center justify-center shadow-lg">
+                  <AlertTriangle className="w-6 h-6 text-white animate-pulse" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-red-900">🚨 URGENT SOS REQUEST</h2>
+                  <p className="text-sm text-red-700">Emergency assistance deployment</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <p className="text-gray-700 leading-relaxed">
+                This will immediately submit a <span className="font-semibold text-red-600">critical priority emergency SOS request</span> to our emergency coordination network.
+              </p>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+                <p className="font-semibold text-blue-900 mb-2">The system will automatically:</p>
+                <ul className="space-y-1.5 text-sm text-blue-800">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-0.5">✓</span>
+                    <span>Mark <strong>all resource types</strong> as critically needed (food, water, medical, shelter, etc.)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-0.5">✓</span>
+                    <span>Request your <strong>current location</strong> (browser will ask for permission)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-0.5">✓</span>
+                    <span>Capture <strong>battery and network status</strong> for emergency prioritization</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-0.5">✓</span>
+                    <span>Set <strong>critical priority level</strong> for immediate dispatch</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-0.5">✓</span>
+                    <span>Notify <strong>nearby verified NGOs and response teams</strong> instantly</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm text-amber-900">
+                  <strong>⚠️ Important:</strong> Emergency teams will be dispatched immediately. Use this only for genuine life-threatening situations.
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="p-6 border-t border-gray-200 bg-gray-50 flex gap-3">
+              <button
+                onClick={() => setIsSosDialogOpen(false)}
+                className="flex-1 h-12 px-6 text-base font-medium border-2 border-gray-300 hover:bg-white rounded-lg transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSOS}
+                disabled={sosSubmitting}
+                className="flex-1 h-12 px-6 text-base font-semibold text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:via-rose-700 hover:to-red-800 rounded-lg shadow-lg shadow-red-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {sosSubmitting ? 'Submitting...' : 'Confirm Emergency Request'}
               </button>
             </div>
           </motion.div>

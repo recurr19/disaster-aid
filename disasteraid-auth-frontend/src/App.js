@@ -6,7 +6,6 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import StatusMap from './pages/StatusMap';
 import NGOServiceHeatMap from './pages/NGOServiceHeatMap';
-import RequestFormPublic from './pages/RequestFormPublic';
 
 function App() {
   return (
@@ -22,9 +21,6 @@ function App() {
 
           {/* Dashboard route */}
           <Route path="/dashboard/:role" element={<Dashboard />} />
-
-          {/* Public citizen request form */}
-          <Route path="/request-form" element={<RequestFormPublic />} />
 
           {/* Status Map route */}
           <Route path="/status-map" element={<StatusMap />} />
