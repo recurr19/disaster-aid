@@ -822,15 +822,13 @@ export default function NGODashboard() {
               <p className="text-sm text-gray-600 mt-1">Manage your field team dispatchers and credentials</p>
             </div>
             <div className="flex gap-3">
-              {dispatchers.length === 0 && (
-                <button 
-                  onClick={() => setShowGenerateModal(true)}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Generate Dispatchers
-                </button>
-              )}
+              <button 
+                onClick={() => setShowGenerateModal(true)}
+                className="px-5 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                {dispatchers.length === 0 ? 'Generate Dispatchers' : 'Add More Dispatchers'}
+              </button>
               <button 
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-white/80 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
@@ -1240,6 +1238,7 @@ export default function NGODashboard() {
         <GenerateDispatchersModal
           onClose={() => setShowGenerateModal(false)}
           onGenerate={handleGenerateDispatchers}
+          existingCount={dispatchers.length}
         />
       )}
 

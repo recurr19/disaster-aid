@@ -59,25 +59,22 @@ exports.generateDispatchers = async (req, res) => {
 
     console.log('Generating', count, 'dispatchers for NGO:', ngo.organizationName);
 
-    // Delete existing dispatchers if regenerating
-    if (ngo.dispatchers && ngo.dispatchers.length > 0) {
-      const existingDispatchers = await Dispatcher.find({ ngo: ngo._id });
-      const userIds = existingDispatchers.map(d => d.user);
-      await User.deleteMany({ _id: { $in: userIds } });
-      await Dispatcher.deleteMany({ ngo: ngo._id });
-    }
+    // Get current dispatcher count to continue numbering
+    const existingDispatcherCount = ngo.dispatchers ? ngo.dispatchers.length : 0;
+    console.log('Existing dispatchers:', existingDispatcherCount);
 
     const createdDispatchers = [];
     const dispatcherIds = [];
 
     for (let i = 1; i <= count; i++) {
-      const email = generateDispatcherEmail(ngo.organizationName, i);
+      const dispatcherNumber = existingDispatcherCount + i;
+      const email = generateDispatcherEmail(ngo.organizationName, dispatcherNumber);
       const plainPassword = generatePassword();
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
       // Create User account
       const dispatcherUser = await User.create({
-        name: `${ngo.organizationName} - Dispatcher ${i}`,
+        name: `${ngo.organizationName} - Dispatcher ${dispatcherNumber}`,
         email: email,
         password: hashedPassword,
         role: 'dispatcher',

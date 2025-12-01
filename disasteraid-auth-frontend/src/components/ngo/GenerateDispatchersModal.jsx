@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Users, AlertCircle } from 'lucide-react';
 
-const GenerateDispatchersModal = ({ onClose, onGenerate }) => {
+const GenerateDispatchersModal = ({ onClose, onGenerate, existingCount = 0 }) => {
   const [count, setCount] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,7 +38,9 @@ const GenerateDispatchersModal = ({ onClose, onGenerate }) => {
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center justify-between rounded-t-xl">
           <div className="flex items-center gap-3">
             <Users className="w-6 h-6 text-white" />
-            <h2 className="text-xl font-bold text-white">Generate Dispatchers</h2>
+            <h2 className="text-xl font-bold text-white">
+              {existingCount > 0 ? 'Add More Dispatchers' : 'Generate Dispatchers'}
+            </h2>
           </div>
           <button 
             onClick={onClose}
@@ -51,9 +53,20 @@ const GenerateDispatchersModal = ({ onClose, onGenerate }) => {
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6">
+          {existingCount > 0 && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <span className="font-semibold">Current dispatchers:</span> {existingCount}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                New dispatchers will be numbered starting from {existingCount + 1}
+              </p>
+            </div>
+          )}
+          
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              How many dispatchers do you want to create?
+              How many {existingCount > 0 ? 'additional ' : ''}dispatchers do you want to create?
             </label>
             <input
               type="number"
