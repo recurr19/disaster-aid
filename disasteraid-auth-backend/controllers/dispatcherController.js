@@ -59,9 +59,10 @@ exports.generateDispatchers = async (req, res) => {
 
     console.log('Generating', count, 'dispatchers for NGO:', ngo.organizationName);
 
-    // Get current dispatcher count to continue numbering
-    const existingDispatcherCount = ngo.dispatchers ? ngo.dispatchers.length : 0;
-    console.log('Existing dispatchers:', existingDispatcherCount);
+    // Get current dispatcher count from database to continue numbering correctly
+    const existingDispatchers = await Dispatcher.find({ ngo: ngo._id }).lean();
+    const existingDispatcherCount = existingDispatchers.length;
+    console.log('Existing dispatchers in database:', existingDispatcherCount);
 
     const createdDispatchers = [];
     const dispatcherIds = [];
@@ -69,6 +70,14 @@ exports.generateDispatchers = async (req, res) => {
     for (let i = 1; i <= count; i++) {
       const dispatcherNumber = existingDispatcherCount + i;
       const email = generateDispatcherEmail(ngo.organizationName, dispatcherNumber);
+      
+      // Check if email already exists
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        console.log(`Email ${email} already exists, skipping...`);
+        continue; // Skip this dispatcher and continue with next number
+      }
+      
       const plainPassword = generatePassword();
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
@@ -85,7 +94,7 @@ exports.generateDispatchers = async (req, res) => {
       const dispatcher = await Dispatcher.create({
         user: dispatcherUser._id,
         ngo: ngo._id,
-        dispatcherId: `DISP-${ngo._id.toString().substring(0, 8).toUpperCase()}-${i.toString().padStart(3, '0')}`,
+        dispatcherId: `DISP-${ngo._id.toString().substring(0, 8).toUpperCase()}-${dispatcherNumber.toString().padStart(3, '0')}`,
         name: dispatcherUser.name,
         email: email,
         generatedPassword: plainPassword, // Store plain password for NGO to share
@@ -106,8 +115,12 @@ exports.generateDispatchers = async (req, res) => {
     }
 
     // Update NGO with dispatcher references
-    ngo.dispatcherCount = count;
-    ngo.dispatchers = dispatcherIds;
+    // Add new dispatchers to existing list instead of replacing
+    if (!ngo.dispatchers) {
+      ngo.dispatchers = [];
+    }
+    ngo.dispatchers.push(...dispatcherIds);
+    ngo.dispatcherCount = ngo.dispatchers.length;
     await ngo.save();
 
     console.log('Successfully generated', createdDispatchers.length, 'dispatchers');
