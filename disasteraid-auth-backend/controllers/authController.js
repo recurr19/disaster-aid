@@ -282,6 +282,15 @@ exports.updateProfile = async (req, res) => {
             if (ngoProfile[key] !== undefined) existingNGO[key] = ngoProfile[key];
           });
         await existingNGO.save();
+
+        // Send webhook notification for profile update
+        const Realtime = require('../utils/realtime');
+        Realtime.emit('ngo:profile:updated', {
+          ngoId: existingNGO._id,
+          organizationName: existingNGO.organizationName,
+          updatedFields: Object.keys(ngoProfile),
+          timestamp: new Date()
+        }, { ngoId: existingNGO._id });
       } else {
         // Create new NGO profile if it doesn't exist
         const normalizedAreas = Array.isArray(ngoProfile.areasOfWork)

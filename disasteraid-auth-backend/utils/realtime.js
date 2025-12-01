@@ -1,4 +1,6 @@
 let ioInstance = null;
+const axios = require('axios');
+const RegisteredNGO = require('../models/RegisteredNGO');
 
 function init(server) {
   const { Server } = require('socket.io');
@@ -7,10 +9,15 @@ function init(server) {
       origin: '*'
     }
   });
+
   ioInstance.on('connection', (socket) => {
-    // Clients may join rooms if needed later
+    // Clients may join rooms (e.g., `ngo:<id>`, `ticket:<ticketId>`, `dispatcher:<id>`, `user:<id>`)
     socket.on('join', (room) => {
-      socket.join(room);
+      try {
+        socket.join(room);
+      } catch (e) {
+        // ignore
+      }
     });
   });
 }
@@ -19,11 +26,63 @@ function io() {
   return ioInstance;
 }
 
-function emit(event, payload) {
-  if (ioInstance) {
-    ioInstance.emit(event, payload);
-  } else {
-    console.log(`[Realtime fallback] ${event}`, payload);
+/**
+ * Emit an event.
+ * Options:
+ *  - ngoId: emit to room `ngo:<ngoId>` and (if configured) POST webhook for that NGO
+ *  - ticketId: emit to room `ticket:<ticketId>`
+ *  - dispatcherId: emit to room `dispatcher:<dispatcherId>`
+ *  - userId: emit to room `user:<userId>` (for citizens)
+ *  - broadcast: true to emit to all clients (default false)
+ */
+async function emit(event, payload, options = {}) {
+  if (!ioInstance) {
+    console.log(`[Realtime fallback] ${event}`, payload, options);
+    return;
+  }
+
+  try {
+    const { ngoId, ticketId, dispatcherId, userId, broadcast } = options;
+
+    // Targeted emit to ticket room
+    if (ticketId) {
+      ioInstance.to(`ticket:${ticketId}`).emit(event, payload);
+    }
+
+    // Targeted emit to dispatcher room
+    if (dispatcherId) {
+      ioInstance.to(`dispatcher:${dispatcherId}`).emit(event, payload);
+    }
+
+    // Targeted emit to user/citizen room
+    if (userId) {
+      ioInstance.to(`user:${userId}`).emit(event, payload);
+    }
+
+    // Targeted emit to NGO room
+    if (ngoId) {
+      ioInstance.to(`ngo:${ngoId}`).emit(event, payload);
+
+      // If NGO has webhook configured, POST the payload
+      try {
+        const ngo = await RegisteredNGO.findById(ngoId).lean();
+        if (ngo && ngo.webhookUrl) {
+          // fire-and-forget POST
+          axios.post(ngo.webhookUrl, { event, payload }).catch(err => {
+            console.error('Realtime webhook POST failed for NGO', ngoId, err?.message || err);
+          });
+        }
+      } catch (e) {
+        console.error('Realtime webhook lookup failed for NGO', ngoId, e?.message || e);
+      }
+    }
+
+    // Broadcast to all if requested
+    if (broadcast) {
+      ioInstance.emit(event, payload);
+    }
+  } catch (e) {
+    console.error('Realtime emit error:', e?.message || e);
   }
 }
 

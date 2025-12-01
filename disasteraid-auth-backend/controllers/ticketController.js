@@ -10,6 +10,7 @@ const Realtime = require('../utils/realtime');
 const submitHelpRequest = async (req, res) => {
   try {
     const data = req.body;
+    const userEmail = req.user?.email || data.email || null;
     const ticketId = generateTicketId();
 
     const files = req.files?.map(file => ({
@@ -117,8 +118,19 @@ const submitHelpRequest = async (req, res) => {
       }
     }
 
-    // Realtime: notify new ticket
-    Realtime.emit('ticket:created', { ticketId: ticket.ticketId, isSOS: ticket.isSOS, helpTypes: ticket.helpTypes, location: ticket.locationGeo });
+    // Realtime: notify new ticket (emit to ticket room and broadcast)
+    Realtime.emit('ticket:created', { 
+      ticketId: ticket.ticketId, 
+      isSOS: ticket.isSOS, 
+      helpTypes: ticket.helpTypes, 
+      location: ticket.locationGeo,
+      createdBy: ticket.createdBy,
+      status: ticket.status
+    }, { 
+      ticketId: ticket.ticketId, 
+      userId: ticket.createdBy, // Emit to citizen's room if logged in
+      broadcast: true 
+    });
 
     // Fire-and-forget: trigger matching to create multiple proposed assignments
     (async () => {
@@ -127,7 +139,7 @@ const submitHelpRequest = async (req, res) => {
         const proposals = matches.slice(0, 10);
 
         for (const m of proposals) {
-          try {
+            try {
             await TicketAssignment.updateOne(
               { ticket: ticket._id, ngo: m.ngoId },
               {
@@ -145,8 +157,8 @@ const submitHelpRequest = async (req, res) => {
               },
               { upsert: true }
             );
-            // Realtime: notify NGO side about new proposal
-            Realtime.emit('assignment:proposed', { ticketId: ticket.ticketId, ngoId: m.ngoId });
+            // Realtime: notify NGO side about new proposal (emit to NGO room and webhook if configured)
+            Realtime.emit('assignment:proposed', { ticketId: ticket.ticketId, ngoId: m.ngoId, etaMinutes: m.etaMinutes, score: m.score }, { ngoId: m.ngoId });
           } catch (e) {
             // ignore duplicates per unique index
           }
@@ -154,8 +166,8 @@ const submitHelpRequest = async (req, res) => {
 
         // Notify citizen that matches are being arranged
         await Notify.ticketMatched(ticket, proposals);
-        // Realtime: broadcast ticket matched update
-        Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'matched', proposals: proposals.map(p => ({ ngoId: p.ngoId, etaMinutes: p.etaMinutes, score: p.score })) });
+        // Realtime: broadcast ticket matched update to ticket room
+        Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'matched', proposals: proposals.map(p => ({ ngoId: p.ngoId, etaMinutes: p.etaMinutes, score: p.score })) }, { ticketId: ticket.ticketId, broadcast: true });
       } catch (e) {
         console.error('Matching error (non-blocking):', e);
       }
@@ -175,8 +187,8 @@ const submitHelpRequest = async (req, res) => {
     // Notify citizen submission received (non-blocking)
     (async () => {
       try {
-        await Notify.ticketCreated(ticket);
-        Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'created' });
+        await Notify.ticketCreated(ticket, userEmail);
+        Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'created' }, { ticketId: ticket.ticketId });
       } catch (e) {
         console.error('Notify ticketCreated failed:', e);
       }

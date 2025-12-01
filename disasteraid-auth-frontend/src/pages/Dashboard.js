@@ -476,6 +476,122 @@ const Dashboard = () => {
     return () => controller.abort();
   }, [sidebarTab, user]);
 
+  // WebSocket real-time updates for citizen tickets
+  useEffect(() => {
+    if (!user || user.role !== 'citizen') return;
+
+    const socket = connectRealtime(user.id, 'citizen');
+
+    const refetchTickets = async () => {
+      try {
+        setLoadingTickets(true);
+        if (sidebarTab === 'active') {
+          const [resActive, resMatched, resTriaged, resInProgress, resFulfilled] = await Promise.all([
+            API.get('/tickets', { params: { status: 'active' } }),
+            API.get('/tickets', { params: { status: 'matched' } }),
+            API.get('/tickets', { params: { status: 'triaged' } }),
+            API.get('/tickets', { params: { status: 'in_progress' } }),
+            API.get('/tickets', { params: { status: 'fulfilled' } })
+          ]);
+          const listA = Array.isArray(resActive.data?.tickets) ? resActive.data.tickets : [];
+          const listB = Array.isArray(resMatched.data?.tickets) ? resMatched.data.tickets : [];
+          const listC = Array.isArray(resTriaged.data?.tickets) ? resTriaged.data.tickets : [];
+          const listD = Array.isArray(resInProgress.data?.tickets) ? resInProgress.data.tickets : [];
+          const listE = Array.isArray(resFulfilled.data?.tickets) ? resFulfilled.data.tickets : [];
+          const uniq = new Map();
+          [...listA, ...listB, ...listC, ...listD, ...listE].forEach(t => {
+            const key = t.id || t.ticketId;
+            if (key && !uniq.has(key)) uniq.set(key, t);
+          });
+          setTickets(Array.from(uniq.values()));
+        } else if (sidebarTab === 'past') {
+          const [resCompleted, resClosed] = await Promise.all([
+            API.get('/tickets', { params: { status: 'completed' } }),
+            API.get('/tickets', { params: { status: 'closed' } }),
+          ]);
+          const listCompleted = Array.isArray(resCompleted.data?.tickets) ? resCompleted.data.tickets : [];
+          const listClosed = Array.isArray(resClosed.data?.tickets) ? resClosed.data.tickets : [];
+          const uniqPast = new Map();
+          [...listCompleted, ...listClosed].forEach(t => {
+            const key = t.id || t.ticketId;
+            if (key && !uniqPast.has(key)) uniqPast.set(key, t);
+          });
+          setTickets(Array.from(uniqPast.values()));
+        }
+      } catch (e) {
+        console.error('Error refetching tickets:', e);
+      } finally {
+        setLoadingTickets(false);
+      }
+    };
+
+    const handleTicketCreated = (data) => {
+      console.log('🎫 New ticket created:', data);
+      // If on active tab, refetch to include new ticket
+      if (sidebarTab === 'active') {
+        refetchTickets();
+      }
+    };
+
+    const handleTicketStatusUpdate = (data) => {
+      console.log('📝 Ticket status updated:', data);
+      // Update the specific ticket in state
+      setTickets(prev => {
+        const updated = prev.map(t => 
+          t.ticketId === data.ticketNumber 
+            ? { ...t, status: data.newStatus }
+            : t
+        );
+        
+        // Check if ticket should be moved to different tab
+        const ticket = prev.find(t => t.ticketId === data.ticketNumber);
+        if (ticket) {
+          const isActiveStatus = ['active', 'matched', 'triaged', 'in_progress', 'fulfilled'].includes(data.newStatus);
+          const isPastStatus = ['completed', 'closed'].includes(data.newStatus);
+          
+          // If ticket moved to past and we're on active tab, remove it
+          if (sidebarTab === 'active' && isPastStatus) {
+            return prev.filter(t => t.ticketId !== data.ticketNumber);
+          }
+          // If ticket moved to active and we're on past tab, remove it
+          if (sidebarTab === 'past' && isActiveStatus) {
+            return prev.filter(t => t.ticketId !== data.ticketNumber);
+          }
+        }
+        
+        return updated;
+      });
+    };
+
+    const handleTicketClosed = (data) => {
+      console.log('🔒 Ticket closed:', data);
+      // If on active tab, remove closed ticket
+      if (sidebarTab === 'active') {
+        setTickets(prev => prev.filter(t => t.ticketId !== data.ticketNumber));
+      } else if (sidebarTab === 'past') {
+        // If on past tab, refetch to include newly closed ticket
+        refetchTickets();
+      }
+    };
+
+    const handleTicketUpdate = (data) => {
+      console.log('🔄 General ticket update:', data);
+      refetchTickets();
+    };
+
+    socket.on('ticket:created', handleTicketCreated);
+    socket.on('ngo:ticket:status:updated', handleTicketStatusUpdate);
+    socket.on('ngo:ticket:closed', handleTicketClosed);
+    socket.on('ticket:update', handleTicketUpdate);
+
+    return () => {
+      socket.off('ticket:created', handleTicketCreated);
+      socket.off('ngo:ticket:status:updated', handleTicketStatusUpdate);
+      socket.off('ngo:ticket:closed', handleTicketClosed);
+      socket.off('ticket:update', handleTicketUpdate);
+    };
+  }, [user, sidebarTab]);
+
   // Monitor network connection and measure actual strength via latency
   useEffect(() => {
     const measureNetworkStrength = async () => {

@@ -114,6 +114,15 @@ exports.generateDispatchers = async (req, res) => {
     await ngo.save();
 
     console.log('Successfully generated', createdDispatchers.length, 'dispatchers');
+
+    // Send webhook notification for dispatcher generation
+    const Realtime = require('../utils/realtime');
+    Realtime.emit('ngo:dispatchers:generated', {
+      ngoId: ngo._id,
+      organizationName: ngo.organizationName,
+      dispatcherCount: count,
+      timestamp: new Date()
+    }, { ngoId: ngo._id });
     
     res.json({
       message: `Successfully generated ${count} dispatchers`,
@@ -224,6 +233,36 @@ exports.assignTicketToDispatcher = async (req, res) => {
     }
 
     console.log('Ticket assigned successfully:', ticket.ticketId, 'to dispatcher:', dispatcher.name);
+    
+    // Send webhook notification for dispatcher assignment (to NGO)
+    const Realtime = require('../utils/realtime');
+    Realtime.emit('ngo:ticket:dispatched:database', {
+      ngoId: ngo._id,
+      ticketId: ticket._id,
+      ticketNumber: ticket.ticketId,
+      dispatcherId: dispatcher._id,
+      dispatcherName: dispatcher.name,
+      timestamp: new Date()
+    }, { ngoId: ngo._id, broadcast: true });
+    
+    // Send targeted event to dispatcher room for real-time UI update
+    Realtime.emit('dispatcher:ticket:assigned', {
+      dispatcherId: dispatcher._id,
+      ticketId: ticket._id,
+      ticketNumber: ticket.ticketId,
+      assignedTicketsCount: dispatcher.assignedTickets.length,
+      timestamp: new Date(),
+      ticket: {
+        _id: ticket._id,
+        ticketId: ticket.ticketId,
+        name: ticket.name,
+        phone: ticket.phone,
+        address: ticket.address,
+        status: ticket.status,
+        isSOS: ticket.isSOS,
+        dispatchedAt: ticket.dispatchedAt
+      }
+    }, { ngoId: ngo._id, dispatcherId: dispatcher._id, broadcast: true }); // Emit to both NGO and dispatcher rooms
     
     res.json({ 
       message: 'Ticket assigned to dispatcher successfully', 

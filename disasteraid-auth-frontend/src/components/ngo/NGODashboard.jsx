@@ -13,6 +13,7 @@ import { assignTicketToDispatcher, generateDispatchers as generateDispatchersAPI
 import { AuthContext } from '../../context/AuthContext';
 import API from '../../api/axios';
 import AppHeader from '../common/AppHeader';
+import { useRealtimeNGO } from '../../hooks/useRealtimeNGO';
 
 export default function NGODashboard() {
   const [activeTab, setActiveTab] = useState("profile");
@@ -125,46 +126,121 @@ export default function NGODashboard() {
     load();
   }, []);
 
-  // Realtime refresh for NGO matches/accepted
+  // Realtime refresh for NGO matches/accepted using custom hook
+  const refetchData = async () => {
+    try {
+      const proposed = await listNGOMatches('proposed');
+      const accepted = await listNGOMatches('accepted');
+      const citizens = (proposed.assignments || []).map(a => ({
+        id: a.assignmentId,
+        name: a.ticket?.name || 'Citizen',
+        helpType: (a.ticket?.helpTypes || []).join(', '),
+        urgency: a.isSOS ? 'SOS' : 'Normal',
+        location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
+        peopleCount: (a.ticket?.adults || 0) + (a.ticket?.children || 0) + (a.ticket?.elderly || 0),
+        ticketId: a.ticket?.ticketId
+      }));
+      setMatchedCitizens(citizens);
+      const requests = (accepted.assignments || []).map(a => ({
+        id: a.ticket?.ticketId,
+        ticketObjectId: a.ticket?._id,
+        citizenName: a.ticket?.name || 'Citizen',
+        helpType: (a.ticket?.helpTypes || []).join(', '),
+        location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
+        acceptedAt: new Date(a.createdAt).toLocaleString(),
+        status: 'matched',
+        isDispatched: a.ticket?.isDispatched || false,
+        dispatchedTo: a.ticket?.dispatchedTo,
+        deliveryProof: a.ticket?.deliveryProof,
+        proofOfDelivery: a.ticket?.proofOfDelivery
+      }));
+      setActiveRequests(requests);
+    } catch (e) {
+      console.error('Failed to refetch data:', e);
+    }
+  };
+
+  const refetchDispatchers = async () => {
+    try {
+      const dispatcherRes = await listDispatchersAPI();
+      console.log('Dispatchers refreshed:', dispatcherRes);
+      setDispatchers(dispatcherRes.dispatchers || []);
+    } catch (dispErr) {
+      console.error('Failed to refresh dispatchers:', dispErr);
+    }
+  };
+
+  // Use realtime hook for automatic updates
+  useRealtimeNGO(ngoProfile?._id, {
+    onNewProposal: (data) => {
+      console.log('🔔 New proposal notification received');
+      refetchData();
+    },
+    onAssignmentUpdate: (data) => {
+      console.log('✅ Assignment update notification received');
+      refetchData();
+    },
+    onProposals: (data) => {
+      console.log('📋 Proposals batch notification received');
+      refetchData();
+    },
+    onTicketUpdate: (data) => {
+      console.log('📝 Ticket update notification received');
+      refetchData();
+      refetchDispatchers(); // Refresh to get updated ticket statuses in assigned tickets
+    },
+    onDispatcherUpdate: (data) => {
+      console.log('👷 Dispatcher assignment update received');
+      refetchDispatchers();
+      refetchData(); // Also refetch active requests to update dispatch status
+    },
+    onTicketClosed: (data) => {
+      console.log('🔒 Ticket closed - removing from UI:', data.ticketNumber);
+      // Remove the closed ticket from activeRequests
+      setActiveRequests(prev => prev.filter(req => req.id !== data.ticketNumber));
+      refetchDispatchers(); // Refresh dispatchers to update assigned tickets list
+    }
+  });
+
+  // Additional direct listener for dispatcher updates (backup)
   useEffect(() => {
-    const s = connectRealtime();
-    const reload = async () => {
-      try {
-        const proposed = await listNGOMatches('proposed');
-        const accepted = await listNGOMatches('accepted');
-        const citizens = (proposed.assignments || []).map(a => ({
-          id: a.assignmentId,
-          name: a.ticket?.name || 'Citizen',
-          helpType: (a.ticket?.helpTypes || []).join(', '),
-          urgency: a.isSOS ? 'SOS' : 'Normal',
-          location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
-          peopleCount: (a.ticket?.adults || 0) + (a.ticket?.children || 0) + (a.ticket?.elderly || 0),
-          ticketId: a.ticket?.ticketId
-        }));
-        setMatchedCitizens(citizens);
-        const requests = (accepted.assignments || []).map(a => ({
-          id: a.ticket?.ticketId,
-          ticketObjectId: a.ticket?._id,
-          citizenName: a.ticket?.name || 'Citizen',
-          helpType: (a.ticket?.helpTypes || []).join(', '),
-          location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
-          acceptedAt: new Date(a.createdAt).toLocaleString(),
-          status: 'matched',
-          isDispatched: a.ticket?.isDispatched || false,
-          dispatchedTo: a.ticket?.dispatchedTo,
-          deliveryProof: a.ticket?.deliveryProof,
-          proofOfDelivery: a.ticket?.proofOfDelivery
-        }));
-        setActiveRequests(requests);
-      } catch {}
+    const socket = connectRealtime(ngoProfile?._id, 'ngo');
+    
+    const handleDispatcherAssignment = (data) => {
+      console.log('🔥 Direct dispatcher assignment event:', data);
+      refetchDispatchers();
+      refetchData();
     };
-    s.on('assignment:proposed', reload);
-    s.on('assignment:accepted', reload);
+
+    const handleNGOTicketDispatched = (data) => {
+      console.log('🔥 NGO ticket dispatched event:', data);
+      refetchDispatchers();
+      refetchData();
+    };
+
+    const handleTicketStatusUpdated = (data) => {
+      console.log('🔄 Ticket status updated event:', data);
+      // Update the status in activeRequests
+      setActiveRequests(prev => 
+        prev.map(req => 
+          req.id === data.ticketNumber 
+            ? { ...req, status: data.newStatus } 
+            : req
+        )
+      );
+      refetchDispatchers(); // Also refresh dispatchers to update assigned tickets
+    };
+
+    socket.on('dispatcher:ticket:assigned', handleDispatcherAssignment);
+    socket.on('ngo:ticket:dispatched:database', handleNGOTicketDispatched);
+    socket.on('ngo:ticket:status:updated', handleTicketStatusUpdated);
+
     return () => {
-      s.off('assignment:proposed', reload);
-      s.off('assignment:accepted', reload);
+      socket.off('dispatcher:ticket:assigned', handleDispatcherAssignment);
+      socket.off('ngo:ticket:dispatched:database', handleNGOTicketDispatched);
+      socket.off('ngo:ticket:status:updated', handleTicketStatusUpdated);
     };
-  }, []);
+  }, [ngoProfile?._id]);
 
   const handleAcceptMatch = async (assignmentId) => {
     try {
@@ -1144,7 +1220,7 @@ export default function NGODashboard() {
                                     : 'Close ticket after verifying proof'
                                 }
                               >
-                                Close Ticket
+                                {ticketStatus === 'closed' ? 'Closed' : 'Close Ticket'}
                               </button>
                             </div>
                           </div>

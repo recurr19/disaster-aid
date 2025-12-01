@@ -114,14 +114,24 @@ async function backgroundMatch() {
 
           // Notify about proposals
           if (bestCombo.assignments.length > 0) {
-            const proposals = bestCombo.assignments.map(a => ({
-              ngoId: a.ngo.ngoId,
-              distanceKm: a.ngo.distanceKm,
-              etaMinutes: a.ngo.etaMinutes,
-              score: a.ngo.score,
-              assignedCapacities: a.assignedCapacities
-            }));
-            Realtime.emit('ticket:proposals', { ticketId: t.ticketId, proposals });
+            // Emit per-NGO proposed assignment (room + webhook) and also broadcast a ticket-level proposals update
+            const proposals = [];
+            for (const a of bestCombo.assignments) {
+              const m = a.ngo;
+              const payload = {
+                ticketId: t.ticketId,
+                ngoId: m.ngoId,
+                distanceKm: m.distanceKm,
+                etaMinutes: m.etaMinutes,
+                score: m.score,
+                assignedCapacities: a.assignedCapacities
+              };
+              proposals.push(payload);
+              Realtime.emit('assignment:proposed', payload, { ngoId: m.ngoId });
+            }
+
+            // Also broadcast a ticket-level proposals list to ticket room and optionally to dashboards
+            Realtime.emit('ticket:proposals', { ticketId: t.ticketId, proposals }, { ticketId: t.ticketId, broadcast: true });
           }
         }
       } catch (e) {

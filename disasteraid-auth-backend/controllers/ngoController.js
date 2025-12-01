@@ -34,10 +34,16 @@ exports.listMatches = async (req, res) => {
           name: a.ticket.name,
           phone: a.ticket.phone,
           address: a.ticket.address,
+          landmark: a.ticket.landmark,
           helpTypes: a.ticket.helpTypes,
           isSOS: a.ticket.isSOS,
           description: a.ticket.description,
-          createdAt: a.ticket.createdAt
+          adults: a.ticket.adults,
+          children: a.ticket.children,
+          elderly: a.ticket.elderly,
+          totalBeneficiaries: a.ticket.totalBeneficiaries,
+          createdAt: a.ticket.createdAt,
+          _id: a.ticket._id
         } : null
       }))
     });
@@ -71,13 +77,23 @@ exports.acceptAssignment = async (req, res) => {
     ticket.assignmentHistory.push({ ngo: assignment.ngo, assignedAt: new Date(), note: 'NGO accepted assignment' });
     await ticket.save();
 
+    // Send webhook notification for assignment acceptance
+    Realtime.emit('ngo:assignment:accepted:database', {
+      ngoId: String(ngoProfile._id),
+      assignmentId: assignment._id,
+      ticketId: ticket.ticketId,
+      status: 'accepted',
+      timestamp: new Date()
+    }, { ngoId: String(ngoProfile._id) });
+
     // Notify both parties
     (async () => {
       try {
         await Notify.ngoAccepted(ticket, assignment.ngo);
-        Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'accepted', ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm, etaMinutes: assignment.etaMinutes });
-        Realtime.emit('assignment:accepted', { ticketId: ticket.ticketId, ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm, etaMinutes: assignment.etaMinutes });
-      Realtime.emit('assignment:accepted', { ticketId: ticket.ticketId, ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm ?? null, etaMinutes: assignment.etaMinutes ?? null });
+        // Emit update to ticket room
+        Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'accepted', ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm, etaMinutes: assignment.etaMinutes }, { ticketId: ticket.ticketId });
+        // Emit to NGO room and webhook
+        Realtime.emit('assignment:accepted', { ticketId: ticket.ticketId, ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm ?? null, etaMinutes: assignment.etaMinutes ?? null }, { ngoId: String(assignment.ngo) });
       } catch (e) {
         console.error('Notify ngoAccepted failed:', e);
       }
@@ -114,6 +130,15 @@ exports.rejectAssignment = async (req, res) => {
     ticket.assignmentHistory = ticket.assignmentHistory || [];
     ticket.assignmentHistory.push({ ngo: assignment.ngo, assignedAt: new Date(), note: 'NGO rejected assignment' });
     await ticket.save();
+
+    // Send webhook notification for assignment rejection
+    Realtime.emit('ngo:assignment:rejected:database', {
+      ngoId: String(ngoProfile._id),
+      assignmentId: assignment._id,
+      ticketId: ticket.ticketId,
+      status: 'rejected',
+      timestamp: new Date()
+    }, { ngoId: String(ngoProfile._id) });
 
     res.json({ success: true, ticketId: ticket.ticketId, assignmentId, status: 'rejected' });
   } catch (e) {

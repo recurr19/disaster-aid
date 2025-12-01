@@ -51,6 +51,9 @@ const registeredNGOSchema = new mongoose.Schema({
     ref: 'Dispatcher'
   }]
 
+  // Optional webhook URL for real-time notifications (POST will be sent with { event, payload })
+  ,webhookUrl: { type: String }
+
 }, { timestamps: true });
 
 // GeoJSON location for spatial queries (optional). Stored as [lng, lat]

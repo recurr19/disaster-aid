@@ -86,7 +86,7 @@ exports.updateStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid status' });
     }
 
-    const ticket = await Ticket.findOne({ ticketId });
+    const ticket = await Ticket.findOne({ ticketId }).populate('assignedTo');
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket not found' });
 
     ticket.status = status;
@@ -98,11 +98,34 @@ exports.updateStatus = async (req, res) => {
     });
     await ticket.save();
 
+    // Send webhook notification to assigned NGO about status update
+    if (ticket.assignedTo && ticket.assignedTo._id) {
+      Realtime.emit('ngo:ticket:status:updated', {
+        ngoId: ticket.assignedTo._id,
+        ticketId: ticket._id,
+        ticketNumber: ticket.ticketId,
+        oldStatus: ticket.status,
+        newStatus: status,
+        note: note,
+        timestamp: new Date()
+      }, { ngoId: ticket.assignedTo._id });
+
+      // If ticket is closed, emit specific event to remove from UI
+      if (status === 'closed') {
+        Realtime.emit('ngo:ticket:closed', {
+          ngoId: ticket.assignedTo._id,
+          ticketId: ticket._id,
+          ticketNumber: ticket.ticketId,
+          timestamp: new Date()
+        }, { ngoId: ticket.assignedTo._id, broadcast: true });
+      }
+    }
+
     // Notify citizen of the status update
     (async () => {
       try {
         await Notify.ticketStatusUpdated(ticket, status);
-      Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'status', status });
+      Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'status', status }, { ticketId: ticket.ticketId });
       } catch (e) {
         console.error('Notify ticketStatusUpdated failed:', e);
       }
