@@ -13,6 +13,7 @@ import DispatcherDashboard from "../components/dispatcher/DispatcherDashboard";
 import AppHeader from "../components/common/AppHeader";
 import DispatcherTrackingMap from "../components/maps/DispatcherTrackingMap";
 import Toast from "../components/common/Toast";
+import CitizenChatbot from "../components/common/CitizenChatbot";
 
 const Dashboard = () => {
   const { user, logout } = useContext(AuthContext);
@@ -1807,6 +1808,9 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Citizen Chatbot - Only visible for citizens */}
+      <CitizenChatbot />
     </div>
     
   );

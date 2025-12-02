@@ -1,10 +1,14 @@
 import React, { useMemo, useState, useRef } from 'react';
-import { FileText, Download, TrendingUp, AlertTriangle, Users, CheckCircle, BarChart3, PieChart } from 'lucide-react';
+import { FileText, Download, TrendingUp, AlertTriangle, Users, CheckCircle, BarChart3, PieChart, Search } from 'lucide-react';
 import './authority.css';
 
 const AutomatedBriefs = ({ mapData }) => {
   const [showBrief, setShowBrief] = useState(false);
-  const briefRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('overall'); // 'overall' or 'ngo'
+  const [selectedNGO, setSelectedNGO] = useState('');
+  const [ngoSearchTerm, setNgoSearchTerm] = useState('');
+  const overallRef = useRef(null);
+  const ngoRef = useRef(null);
 
   const summary = useMemo(() => {
     const features = mapData?.tickets?.features ? mapData.tickets.features : [];
@@ -80,11 +84,62 @@ const AutomatedBriefs = ({ mapData }) => {
       }
     });
 
-    return { total, sos, normal, unassigned, unassignedSOS, unassignedNormal, resolvedSOS, resolvedNormal, byHelp, byHelpSOS, byHelpNormal, trendByHelp, shelters, totalShelterCapacity, sheltersNearCapacity, hourBins };
+    // NGO-wise Analysis
+    const ngoStats = {};
+    features.forEach(f => {
+      const assignedTo = f.properties?.assignedTo;
+      if (assignedTo) {
+        // Handle if assignedTo is an object or string
+        const ngoKey = typeof assignedTo === 'object' 
+          ? (assignedTo.organizationName || assignedTo.id || JSON.stringify(assignedTo))
+          : assignedTo;
+        const ngoName = typeof assignedTo === 'object'
+          ? (assignedTo.organizationName || assignedTo.id || 'Unknown NGO')
+          : assignedTo;
+        
+        if (!ngoStats[ngoKey]) {
+          ngoStats[ngoKey] = {
+            name: ngoName,
+            total: 0,
+            sos: 0,
+            normal: 0,
+            resolved: 0,
+            pending: 0,
+            inProgress: 0,
+            helpTypes: {}
+          };
+        }
+        
+        const isS = !!(f.properties && f.properties.isSOS);
+        const status = String(f.properties?.status || '').toLowerCase();
+        
+        ngoStats[ngoKey].total += 1;
+        if (isS) ngoStats[ngoKey].sos += 1;
+        else ngoStats[ngoKey].normal += 1;
+        
+        if (resolvedStatuses.includes(status)) ngoStats[ngoKey].resolved += 1;
+        else if (['in-progress', 'in_progress', 'ongoing', 'active'].includes(status)) ngoStats[ngoKey].inProgress += 1;
+        else ngoStats[ngoKey].pending += 1;
+        
+        (f.properties?.helpTypes || []).forEach(h => {
+          ngoStats[ngoKey].helpTypes[h] = (ngoStats[ngoKey].helpTypes[h] || 0) + 1;
+        });
+      }
+    });
+
+    const ngoArray = Object.values(ngoStats).map(ngo => ({
+      ...ngo,
+      successRate: ngo.total > 0 ? Math.round((ngo.resolved / ngo.total) * 100) : 0,
+      primaryHelpType: Object.keys(ngo.helpTypes).length > 0 
+        ? Object.entries(ngo.helpTypes).sort((a, b) => b[1] - a[1])[0][0]
+        : 'N/A'
+    })).sort((a, b) => b.total - a.total);
+
+    return { total, sos, normal, unassigned, unassignedSOS, unassignedNormal, resolvedSOS, resolvedNormal, byHelp, byHelpSOS, byHelpNormal, trendByHelp, shelters, totalShelterCapacity, sheltersNearCapacity, hourBins, ngoStats: ngoArray };
   }, [mapData]);
 
   const downloadPDF = async () => {
-    const element = briefRef.current;
+    const element = activeTab === 'overall' ? overallRef.current : ngoRef.current;
     if (!element) return;
 
     try {
@@ -437,8 +492,42 @@ const AutomatedBriefs = ({ mapData }) => {
       </div>
 
       {showBrief && (
-        <div ref={briefRef} className="space-y-6">
-          {/* Stats Overview */}
+        <>
+          {/* Tabs */}
+          <div className="crisis-overview-card">
+            <div className="flex border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('overall')}
+                className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
+                  activeTab === 'overall'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  Overall Analysis
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab('ngo')}
+                className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
+                  activeTab === 'ngo'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  NGO-wise Analysis
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Overall Analysis Tab */}
+          {activeTab === 'overall' && (
+        <div ref={overallRef} className="space-y-6">{/* Stats Overview */}
           <div className="crisis-overview-card">
             <div className="co-header">
               <h3 className="co-title">Situation Brief</h3>
@@ -737,6 +826,206 @@ const AutomatedBriefs = ({ mapData }) => {
             </div>
           )}
         </div>
+          )}
+
+          {/* NGO-wise Analysis Tab */}
+          {activeTab === 'ngo' && (
+            <div ref={ngoRef} className="space-y-6">
+              {summary.ngoStats && summary.ngoStats.length > 0 ? (
+                <div className="crisis-overview-card">
+                  <div className="co-header">
+                    <div className="flex items-center gap-2">
+                      <div className="stat-icon bg-success">
+                        <Users className="icon" />
+                      </div>
+                      <h3 className="co-title">NGO Performance Analysis</h3>
+                    </div>
+                    <p className="co-sub">{summary.ngoStats.length} active NGOs</p>
+                  </div>
+                  
+                  {/* Search and Dropdown */}
+                  <div className="mt-4 space-y-3">
+                    <div className="flex gap-3">
+                      <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search NGO by name..."
+                          value={ngoSearchTerm}
+                          onChange={(e) => {
+                            setNgoSearchTerm(e.target.value);
+                            setSelectedNGO('');
+                          }}
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      
+                      <select
+                        value={selectedNGO}
+                        onChange={(e) => {
+                          setSelectedNGO(e.target.value);
+                          setNgoSearchTerm('');
+                        }}
+                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="">Select an NGO...</option>
+                        {summary.ngoStats.map((ngo, idx) => (
+                          <option key={idx} value={ngo.name}>{ngo.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {(selectedNGO || ngoSearchTerm) && (
+                      <button
+                        onClick={() => {
+                          setSelectedNGO('');
+                          setNgoSearchTerm('');
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Clear filter
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* NGO Cards */}
+                  {(() => {
+                    const filteredNGOs = summary.ngoStats.filter(ngo => {
+                      if (selectedNGO) return ngo.name === selectedNGO;
+                      if (ngoSearchTerm) return ngo.name.toLowerCase().includes(ngoSearchTerm.toLowerCase());
+                      return false;
+                    });
+
+                    if (!selectedNGO && !ngoSearchTerm) {
+                      return (
+                        <div className="mt-4 text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                          <Users className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-600 font-medium">Search or select an NGO to view details</p>
+                          <p className="text-xs text-gray-500 mt-1">Use the search box or dropdown above</p>
+                        </div>
+                      );
+                    }
+
+                    if (filteredNGOs.length === 0) {
+                      return (
+                        <div className="mt-4 text-center py-8 bg-red-50 rounded-lg border border-red-200">
+                          <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-700 font-medium">No NGOs found</p>
+                          <p className="text-xs text-gray-600 mt-1">Try a different search term</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="mt-4 space-y-4">
+                        {filteredNGOs.map((ngo, idx) => (
+                          <div key={idx} className="border border-gray-200 rounded-lg p-4 bg-gradient-to-br from-white to-gray-50">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <h4 className="font-bold text-gray-900 text-base mb-1">{ngo.name}</h4>
+                                <p className="text-xs text-gray-600">
+                                  Primary: <span className="capitalize font-medium">{ngo.primaryHelpType}</span>
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <div className={`text-2xl font-bold ${ngo.successRate >= 70 ? 'text-green-600' : ngo.successRate >= 40 ? 'text-orange-600' : 'text-red-600'}`}>
+                                  {ngo.successRate}%
+                                </div>
+                                <div className="text-xs text-gray-500">Success Rate</div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-3 mb-3">
+                              <div className="bg-white rounded-lg p-2 border border-gray-200">
+                                <div className="text-xl font-bold text-gray-900">{ngo.total}</div>
+                                <div className="text-xs text-gray-600">Total</div>
+                              </div>
+                              <div className="bg-white rounded-lg p-2 border border-blue-200">
+                                <div className="text-xl font-bold text-blue-600">{ngo.normal}</div>
+                                <div className="text-xs text-gray-600">Normal</div>
+                              </div>
+                              <div className="bg-white rounded-lg p-2 border border-red-200">
+                                <div className="text-xl font-bold text-red-600">{ngo.sos}</div>
+                                <div className="text-xs text-gray-600">SOS</div>
+                              </div>
+                              <div className="bg-white rounded-lg p-2 border border-green-200">
+                                <div className="text-xl font-bold text-green-600">{ngo.resolved}</div>
+                                <div className="text-xs text-gray-600">Resolved</div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-xs mb-3">
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                <span className="text-gray-600">Resolved: <span className="font-semibold">{ngo.resolved}</span></span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                <span className="text-gray-600">In Progress: <span className="font-semibold">{ngo.inProgress}</span></span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                                <span className="text-gray-600">Pending: <span className="font-semibold">{ngo.pending}</span></span>
+                              </div>
+                            </div>
+
+                            {Object.keys(ngo.helpTypes).length > 0 && (
+                              <div className="pt-3 border-t border-gray-200">
+                                <div className="text-xs text-gray-600 mb-2 font-medium">Help Types Distribution:</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {Object.entries(ngo.helpTypes)
+                                    .sort((a, b) => b[1] - a[1])
+                                    .map(([type, count]) => (
+                                      <span key={type} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs capitalize">
+                                        {type}: <span className="font-semibold">{count}</span>
+                                      </span>
+                                    ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Top Performer Footer */}
+                  <div className="co-footer mt-4">
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-700">
+                        <span className="font-semibold"> Top Performing NGO:</span>{' '}
+                        {summary.ngoStats.length > 0 
+                          ? `${summary.ngoStats[0].name} with ${summary.ngoStats[0].successRate}% success rate (${summary.ngoStats[0].resolved}/${summary.ngoStats[0].total} resolved)`
+                          : 'N/A'}
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        <span className="font-semibold"> Most Active NGO:</span>{' '}
+                        {summary.ngoStats.length > 0 
+                          ? `${summary.ngoStats[0].name} handling ${summary.ngoStats[0].total} tickets`
+                          : 'N/A'}
+                      </p>
+                      {summary.ngoStats.length > 0 && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-semibold"> Fastest Response:</span>{' '}
+                          {(() => {
+                            const fastestNGO = [...summary.ngoStats].sort((a, b) => b.inProgress - a.inProgress)[0];
+                            return `${fastestNGO.name} with ${fastestNGO.inProgress} tickets in progress`;
+                          })()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="crisis-overview-card text-center py-12">
+                  <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="co-title">No NGO data available</h3>
+                  <p className="co-sub mt-2">NGO assignments will appear here once tickets are assigned</p>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {!showBrief && (
