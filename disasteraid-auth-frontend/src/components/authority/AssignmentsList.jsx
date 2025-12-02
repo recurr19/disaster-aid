@@ -10,6 +10,28 @@ const AssignmentsList = ({ tickets }) => {
   const [error, setError] = useState(null);
   const [selectedTicketId, setSelectedTicketId] = useState(null);
 
+  const statusCategory = (st) => {
+    const s = String(st || '').toLowerCase();
+    if (['new', 'active', 'open'].includes(s)) return 0; // active
+    if (['matched', 'assigned', 'accepted'].includes(s)) return 1; // matched
+    if (['closed', 'resolved', 'canceled', 'fulfilled', 'completed'].includes(s)) return 3; // closed
+    return 2; // others
+  };
+
+  const sortTickets = (feats) => {
+    return feats.slice().sort((a, b) => {
+      const pa = (a.properties || {});
+      const pb = (b.properties || {});
+      const ca = statusCategory(pa.status);
+      const cb = statusCategory(pb.status);
+      if (ca !== cb) return ca - cb;
+      // secondary: newer first
+      const da = new Date(pa.createdAt || 0).getTime();
+      const db = new Date(pb.createdAt || 0).getTime();
+      return db - da;
+    });
+  };
+
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -19,7 +41,7 @@ const AssignmentsList = ({ tickets }) => {
         if (tickets) {
           const features = tickets.type === 'FeatureCollection' ? (tickets.features || []) : (Array.isArray(tickets) ? tickets : []);
           const feats = features.filter(f => !(f.properties && f.properties.isSOS));
-          setLocalTickets(feats);
+          setLocalTickets(sortTickets(feats));
           // Prefetch tracker details for these tickets in background for snappier open
           try {
             const ids = feats.map(f => (f.properties || {}).ticketId).filter(Boolean).filter(id => !getCachedTracker(id));
@@ -33,7 +55,7 @@ const AssignmentsList = ({ tickets }) => {
         if (res && res.success && res.tickets && res.tickets.type === 'FeatureCollection') {
             // Exclude SoS tickets from assignments list
             const feats = (res.tickets.features || []).filter(f => !(f.properties && f.properties.isSOS));
-            setLocalTickets(feats);
+            setLocalTickets(sortTickets(feats));
             // Prefetch tracker details for these tickets in background for snappier open
             try {
               const ids = feats.map(f => (f.properties || {}).ticketId).filter(Boolean).filter(id => !getCachedTracker(id));

@@ -12,6 +12,26 @@ const AssignmentBoard = ({ onAssigned }) => {
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState(null);
 
+  const statusCategory = (st) => {
+    const s = String(st || '').toLowerCase();
+    if (['new', 'active', 'open', 'in_progress'].includes(s)) return 0; // active
+    if (['matched', 'assigned', 'accepted'].includes(s)) return 1; // matched
+    if (['closed', 'resolved', 'canceled', 'fulfilled', 'completed'].includes(s)) return 3; // closed
+    return 2; // others
+  };
+
+  const sortTickets = (arr) => {
+    if (!Array.isArray(arr)) return arr || [];
+    return arr.slice().sort((a, b) => {
+      const sa = statusCategory(a.status);
+      const sb = statusCategory(b.status);
+      if (sa !== sb) return sa - sb;
+      const da = new Date(a.createdAt || 0).getTime();
+      const db = new Date(b.createdAt || 0).getTime();
+      return db - da;
+    });
+  };
+
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -20,9 +40,9 @@ const AssignmentBoard = ({ onAssigned }) => {
         const res = await getTickets({});
         if (!mounted) return;
         if (res && res.success) {
-          setTickets(res.tickets || []);
+          setTickets(sortTickets(res.tickets || []));
         } else if (res && res.tickets) {
-          setTickets(res.tickets || []);
+          setTickets(sortTickets(res.tickets || []));
         }
       } catch (e) {
         console.error('Failed to load tickets', e);

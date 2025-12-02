@@ -10,12 +10,25 @@ const AutomatedBriefs = ({ mapData }) => {
     const now = Date.now();
     const total = features.length;
     const sos = features.filter(f => f.properties && f.properties.isSOS).length;
-    const critical = features.filter(f => f.properties && f.properties.status === 'critical').length;
+    const normal = total - sos;
     const unassigned = features.filter(f => !(f.properties && f.properties.assignedTo)).length;
+    const unassignedSOS = features.filter(f => !(f.properties && f.properties.assignedTo) && f.properties && f.properties.isSOS).length;
+    const unassignedNormal = features.filter(f => !(f.properties && f.properties.assignedTo) && !(f.properties && f.properties.isSOS)).length;
+
+    const resolvedStatuses = ['resolved','closed','fulfilled','completed'];
+    const resolvedSOS = features.filter(f => (f.properties && resolvedStatuses.includes(String(f.properties.status || '').toLowerCase())) && (f.properties && f.properties.isSOS)).length;
+    const resolvedNormal = features.filter(f => (f.properties && resolvedStatuses.includes(String(f.properties.status || '').toLowerCase())) && !(f.properties && f.properties.isSOS)).length;
 
     const byHelp = {};
+    const byHelpSOS = {};
+    const byHelpNormal = {};
     features.forEach(f => {
-      (f.properties?.helpTypes || []).forEach(h => { byHelp[h] = (byHelp[h] || 0) + 1; });
+      const isS = !!(f.properties && f.properties.isSOS);
+      (f.properties?.helpTypes || []).forEach(h => {
+        byHelp[h] = (byHelp[h] || 0) + 1;
+        if (isS) byHelpSOS[h] = (byHelpSOS[h] || 0) + 1;
+        else byHelpNormal[h] = (byHelpNormal[h] || 0) + 1;
+      });
     });
 
     // Trend: compare last 3 hours vs previous 3 hours for each help type
@@ -52,14 +65,76 @@ const AutomatedBriefs = ({ mapData }) => {
       }
     });
 
-    return { total, sos, critical, unassigned, byHelp, trendByHelp, shelters, totalShelterCapacity, sheltersNearCapacity };
+    // hourly counts for last 6 hours for a simple line graph
+    const HOURS = 6;
+    const hourBins = new Array(HOURS).fill(0);
+    features.forEach(f => {
+      const t = f.properties?.createdAt ? new Date(f.properties.createdAt).getTime() : (f.properties?.createdAt ? Date.parse(f.properties.createdAt) : null);
+      if (!t) return;
+      const hoursAgo = Math.floor((now - t) / (60 * 60 * 1000));
+      if (hoursAgo >= 0 && hoursAgo < HOURS) {
+        // place older hours earlier in array
+        hourBins[HOURS - 1 - hoursAgo] += 1;
+      }
+    });
+
+    return { total, sos, normal, unassigned, unassignedSOS, unassignedNormal, resolvedSOS, resolvedNormal, byHelp, byHelpSOS, byHelpNormal, trendByHelp, shelters, totalShelterCapacity, sheltersNearCapacity, hourBins };
   }, [mapData]);
 
   const generate = () => {
     const lines = [];
     lines.push(`Situation Brief — ${new Date().toLocaleString()}`);
     lines.push('');
-    lines.push(`Total active requests: ${summary.total}. Unassigned: ${summary.unassigned}. SOS: ${summary.sos}. Critical: ${summary.critical}.`);
+    // Summary block (each metric on its own line for readability)
+    lines.push('Summary:');
+    lines.push(` Total requests: ${summary.total}`);
+    lines.push(` Normal requests: ${summary.normal}`);
+    lines.push(` SOS requests: ${summary.sos}`);
+    lines.push('');
+    lines.push(' Unassigned:');
+    lines.push(`  - Normal: ${summary.unassignedNormal}`);
+    lines.push(`  - SOS: ${summary.unassignedSOS}`);
+    lines.push('');
+    lines.push(' Resolved:');
+    lines.push(`  - Normal: ${summary.resolvedNormal}`);
+    lines.push(`  - SOS: ${summary.resolvedSOS}`);
+    lines.push('');
+
+    // Help type stats with SOS vs Normal breakdown
+    const helpKeys = Object.keys(summary.byHelp || {});
+    if (helpKeys.length > 0) {
+      lines.push('Analysis:');
+      const stats = helpKeys.map(k => {
+        const totalH = summary.byHelp[k] || 0;
+        const sosH = summary.byHelpSOS[k] || 0;
+        const normalH = summary.byHelpNormal[k] || 0;
+        return { k, total: totalH, sos: sosH, normal: normalH };
+      }).sort((a, b) => b.total - a.total);
+
+      const top = stats.slice(0, 8);
+      const maxCount = top[0] ? top[0].total : 1;
+
+      // Simple counts list + short bar
+      top.forEach(item => {
+        const barLen = maxCount > 0 ? Math.round((item.total / maxCount) * 20) : 0;
+        const bar = '#'.repeat(barLen || 0);
+        lines.push(` - ${item.k}: ${item.total} (SOS:${item.sos} Normal:${item.normal}) ${bar}`);
+      });
+
+      // (hourly numeric line removed as requested)
+
+      // Stacked graph (Normal = ▇, SOS = ░)
+      lines.push('Graph (stacked: Normal ▇ | SOS ░ ):');
+      top.forEach(item => {
+        const width = 40;
+        const totalLen = maxCount > 0 ? Math.round((item.total / maxCount) * width) : 0;
+        const sosLen = item.sos > 0 ? Math.round((item.sos / (item.total || 1)) * totalLen) : 0;
+        const normalLen = Math.max(0, totalLen - sosLen);
+        const normalBar = '▇'.repeat(normalLen);
+        const sosBar = '░'.repeat(sosLen);
+        lines.push(`${item.k.padEnd(15)} | ${normalBar}${sosBar} ${item.total}`);
+      });
+    }
 
     // top help types
     const helpEntries = Object.entries(summary.byHelp).sort((a, b) => b[1] - a[1]);
