@@ -188,7 +188,14 @@ const submitHelpRequest = async (req, res) => {
               { upsert: true }
             );
             // Realtime: notify NGO side about new proposal (emit to NGO room and webhook if configured)
-            Realtime.emit('assignment:proposed', { ticketId: ticket.ticketId, ngoId: m.ngoId, etaMinutes: m.etaMinutes, score: m.score }, { ngoId: m.ngoId });
+            const ngoIdString = String(m.ngoId);
+            console.log(`📤 Emitting assignment:proposed to NGO ${ngoIdString} for ticket ${ticket.ticketId}`);
+            Realtime.emit('assignment:proposed', { 
+              ticketId: ticket.ticketId, 
+              ngoId: ngoIdString, 
+              etaMinutes: m.etaMinutes, 
+              score: m.score 
+            }, { ngoId: ngoIdString });
           } catch (e) {
             // ignore duplicates per unique index
           }

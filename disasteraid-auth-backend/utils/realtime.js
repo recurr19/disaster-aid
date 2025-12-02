@@ -11,13 +11,20 @@ function init(server) {
   });
 
   ioInstance.on('connection', (socket) => {
+    console.log('🔌 New WebSocket connection:', socket.id);
+    
     // Clients may join rooms (e.g., `ngo:<id>`, `ticket:<ticketId>`, `dispatcher:<id>`, `user:<id>`)
     socket.on('join', (room) => {
       try {
         socket.join(room);
+        console.log(`✅ Socket ${socket.id} joined room: ${room}`);
       } catch (e) {
-        // ignore
+        console.error(`❌ Failed to join room ${room}:`, e);
       }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('🔌 Socket disconnected:', socket.id);
     });
   });
 }
@@ -61,7 +68,9 @@ async function emit(event, payload, options = {}) {
 
     // Targeted emit to NGO room
     if (ngoId) {
-      ioInstance.to(`ngo:${ngoId}`).emit(event, payload);
+      const room = `ngo:${ngoId}`;
+      console.log(`📡 Emitting '${event}' to room: ${room}`, payload);
+      ioInstance.to(room).emit(event, payload);
 
       // If NGO has webhook configured, POST the payload
       try {

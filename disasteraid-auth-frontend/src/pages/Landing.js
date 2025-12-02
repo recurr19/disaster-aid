@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { AlertTriangle, Zap, Sparkles, ArrowRight, Shield, MapPin, Activity } from 'lucide-react';
 import { Logo } from '../components/common/Logo';
 import { AnimatedBackground } from '../components/common/AnimatedBackground';
+import SOSSuccessModal from '../components/modals/SOSSuccessModal';
 import API from '../api/axios';
 
 const Landing = () => {
@@ -11,6 +12,7 @@ const Landing = () => {
   const [isPortalDialogOpen, setIsPortalDialogOpen] = useState(false);
   const [isSosDialogOpen, setIsSosDialogOpen] = useState(false);
   const [sosSubmitting, setSosSubmitting] = useState(false);
+  const [sosSuccessTicketId, setSosSuccessTicketId] = useState(null);
 
   const handleUrgentSOSClick = () => {
     setIsSosDialogOpen(true);
@@ -109,12 +111,7 @@ const Landing = () => {
       });
 
       if (res.status === 201 && res.data?.ticketId) {
-        alert(
-          `✅ SOS REQUEST SUBMITTED\n\n` +
-          `Ticket ID: ${res.data.ticketId}\n\n` +
-          `Emergency teams are being notified immediately.\n` +
-          `You will receive updates via your contact method.`
-        );
+        setSosSuccessTicketId(res.data.ticketId);
       } else {
         alert('Failed to submit SOS request. Please try again or contact emergency services.');
       }
@@ -508,6 +505,12 @@ const Landing = () => {
           </div>
         </div>
       </motion.footer>
+
+      {/* SOS Success Modal */}
+      <SOSSuccessModal 
+        ticketId={sosSuccessTicketId} 
+        onClose={() => setSosSuccessTicketId(null)} 
+      />
     </div>
   );
 };

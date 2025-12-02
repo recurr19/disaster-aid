@@ -401,22 +401,33 @@ const DispatcherDashboard = () => {
                       <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-red-500" /> Victim Location
                       </p>
-                      {ticket.address || ticket.landmark ? (
+                      {(ticket.address || ticket.landmark || (ticket.locationGeo?.coordinates && ticket.locationGeo.coordinates.length === 2)) ? (
                         <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm h-40">
                           <iframe
                             title={`map-${ticket._id}`}
                             className="w-full h-full border-0"
                             loading="lazy"
                             referrerPolicy="no-referrer-when-downgrade"
-                            src={`https://www.google.com/maps?q=${encodeURIComponent(
-                              `${ticket.address || ''} ${ticket.landmark || ''}`.trim()
-                            )}&output=embed`}
+                            src={
+                              ticket.address || ticket.landmark
+                                ? `https://www.google.com/maps?q=${encodeURIComponent(
+                                    `${ticket.address || ''} ${ticket.landmark || ''}`.trim()
+                                  )}&output=embed`
+                                : `https://www.google.com/maps?q=${ticket.locationGeo.coordinates[1]},${ticket.locationGeo.coordinates[0]}&output=embed`
+                            }
                           />
                         </div>
                       ) : (
                         <p className="text-xs text-gray-500 italic mb-4">
-                          No precise address available to show on map.
+                          No location information available.
                         </p>
+                      )}
+                      {ticket.locationGeo?.coordinates && ticket.locationGeo.coordinates.length === 2 && (
+                        <div className="mt-2 text-xs text-gray-500 font-mono bg-gray-50 p-2 rounded">
+                          <span>Lat: {ticket.locationGeo.coordinates[1].toFixed(6)}</span>
+                          <span className="mx-2">|</span>
+                          <span>Lng: {ticket.locationGeo.coordinates[0].toFixed(6)}</span>
+                        </div>
                       )}
                     </div>
 

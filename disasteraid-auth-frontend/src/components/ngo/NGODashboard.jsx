@@ -1,6 +1,7 @@
 import { useEffect, useState, useContext } from "react";
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit2, User, Package, Truck, Bell, MapPin, Target, Settings, RefreshCw, Users, Mail, Key, Activity, FileText, Shield, CheckCircle, X, Eye, Copy, Check } from "lucide-react";
+import Toast from '../common/Toast';
 import NGOResourceForm from "./NGOResourceForm";
 import MatchedCitizensList from "./MatchedCitizensList";
 import ActiveRequestsTracker from "./ActiveRequestsTracker";
@@ -47,6 +48,7 @@ export default function NGODashboard() {
   const [activeRequests, setActiveRequests] = useState([]);
   const [dispatchers, setDispatchers] = useState([]);
   const [copiedItems, setCopiedItems] = useState({});
+  const [toast, setToast] = useState(null);
   const [generatedCredentials, setGeneratedCredentials] = useState(null);
   const [dispatchSuccess, setDispatchSuccess] = useState(null);
   const [showAssignedTicketsModal, setShowAssignedTicketsModal] = useState(false);
@@ -176,7 +178,8 @@ export default function NGODashboard() {
   // Use realtime hook for automatic updates
   useRealtimeNGO(ngoProfile?._id, {
     onNewProposal: (data) => {
-      console.log('🔔 New proposal notification received');
+      console.log('🔔 New proposal notification received:', data);
+      console.log('📥 Refetching NGO data...');
       refetchData();
     },
     onAssignmentUpdate: (data) => {
@@ -279,9 +282,16 @@ export default function NGODashboard() {
     try {
       await rejectAssignment(assignmentId);
       setMatchedCitizens(matchedCitizens.filter((c) => c.id !== assignmentId));
+      setToast({
+        message: 'Assignment rejected successfully',
+        type: 'success'
+      });
     } catch (e) {
       console.error('Reject failed', e);
-      alert(e?.response?.data?.message || 'Failed to reject assignment');
+      setToast({
+        message: e?.response?.data?.message || 'Failed to reject assignment',
+        type: 'error'
+      });
     }
   };
 
@@ -1263,6 +1273,15 @@ export default function NGODashboard() {
             setGeneratedCredentials(null);
             window.location.reload(); // Refresh to show new dispatchers
           }}
+        />
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
       </div>

@@ -1,4 +1,4 @@
-import { AlertCircle, Users, MapPin, CheckCircle, XCircle, Paperclip, Image, Volume2 } from "lucide-react";
+import { AlertCircle, Users, MapPin, CheckCircle, XCircle, Paperclip, Image, Volume2, PackageCheck } from "lucide-react";
 import "./MatchedCitizensList.css";
 
 export default function MatchedCitizensList({ citizens, onAccept, onReject }) {
@@ -75,9 +75,59 @@ export default function MatchedCitizensList({ citizens, onAccept, onReject }) {
             )}
           </div>
 
-          <div className="flex gap-3 mt-4">
-            <button className="button-primary flex-1" onClick={() => onAccept(c.id)}><CheckCircle /> Accept</button>
-            <button className="button-secondary flex-1" onClick={() => onReject(c.id)}><XCircle /> Reject</button>
+          {/* Content */}
+          <div className="px-5 pb-4 space-y-3">
+            {/* Help Type */}
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-100">
+              <div className="flex items-start gap-2">
+                <PackageCheck className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-purple-900 mb-1">Required Help</p>
+                  <p className="text-sm text-purple-800 font-medium">{c.helpType}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Location and People Count */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-blue-900 mb-1">Location</p>
+                    <p className="text-sm text-blue-800 truncate" title={c.location}>{c.location}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-green-50 rounded-lg p-3 border border-green-100">
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-green-900 mb-1">Beneficiaries</p>
+                    <p className="text-sm text-green-800 font-bold">{c.peopleCount} {c.peopleCount === 1 ? 'person' : 'people'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-0 border-t border-gray-200">
+            <button 
+              className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 font-semibold transition-all flex items-center justify-center gap-2 shadow-inner"
+              onClick={() => onAccept(c.id)}
+            >
+              <CheckCircle className="w-5 h-5" />
+              Accept
+            </button>
+            <button 
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-4 font-semibold transition-all flex items-center justify-center gap-2 border-l border-gray-200"
+              onClick={() => onReject(c.id)}
+            >
+              <XCircle className="w-5 h-5" />
+              Reject
+            </button>
           </div>
         </div>
       ))}

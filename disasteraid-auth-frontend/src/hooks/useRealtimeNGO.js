@@ -24,8 +24,13 @@ export function useRealtimeNGO(ngoId, callbacks = {}) {
   } = callbacks;
 
   useEffect(() => {
-    if (!ngoId) return;
+    if (!ngoId) {
+      console.log('⚠️ useRealtimeNGO: No ngoId provided, skipping WebSocket setup');
+      return;
+    }
 
+    console.log('🔌 useRealtimeNGO: Connecting with NGO ID:', ngoId);
+    
     // Connect and join NGO room
     const socket = connectRealtime(ngoId, 'ngo');
 
