@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, MapPin, Clock, CheckCircle, Package, RefreshCw, Search, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Search, ArrowLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
 import API from '../api/axios';
 import { AnimatedBackground } from '../components/common/AnimatedBackground';
 import { Logo } from '../components/common/Logo';
+import RequestCard from '../components/common/RequestCard';
 
 const TrackSOS = () => {
   const [sosRequests, setSOSRequests] = useState([]);
@@ -111,195 +113,166 @@ const TrackSOS = () => {
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Title */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center p-3 bg-red-100 rounded-full mb-4">
+        <motion.div 
+          className="text-center mb-8"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <motion.div 
+            className="inline-flex items-center justify-center p-3 bg-gradient-to-br from-red-100 to-rose-100 rounded-full mb-4 shadow-lg"
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
             <AlertTriangle className="w-8 h-8 text-red-600" />
-          </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Track SOS Requests</h1>
-          <p className="text-gray-600">Monitor active emergency requests in real-time</p>
-        </div>
+          </motion.div>
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent mb-2">
+            Track SOS Requests
+          </h1>
+          <p className="text-gray-600 text-lg">Monitor active emergency requests in real-time</p>
+        </motion.div>
 
         {/* Search by Ticket ID */}
-        <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 p-6 mb-8">
+        <motion.div 
+          className="bg-white/90 backdrop-blur-lg supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 p-6 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Search className="w-5 h-5" />
+            <Search className="w-5 h-5 text-blue-600" />
             Search Specific Ticket
           </h2>
-          <form onSubmit={handleSearchTicket} className="flex gap-3">
+          <form onSubmit={handleSearchTicket} className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
               value={searchTicketId}
               onChange={(e) => setSearchTicketId(e.target.value)}
-              placeholder="Enter Ticket ID (e.g., TKT-123456)"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+              placeholder="Enter Ticket ID (e.g., DA-123456)"
+              className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
             />
             <button
               type="submit"
               disabled={searchLoading}
-              className="px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold rounded-lg hover:from-rose-600 hover:to-pink-700 transition-all shadow-md disabled:opacity-50"
+              className="px-6 py-3 bg-gradient-to-r from-rose-600 to-red-600 text-white font-semibold rounded-xl hover:from-rose-700 hover:to-red-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {searchLoading ? 'Searching...' : 'Search'}
             </button>
           </form>
 
+          {/* Search Result */}
           {searchResult && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-bold text-lg text-gray-900">Ticket: {searchResult.ticketId}</h3>
-                  {searchResult.isSOS && (
-                    <span className="inline-block px-2 py-1 text-xs font-bold text-white bg-red-600 rounded mt-1">
-                      🚨 SOS
-                    </span>
-                  )}
-                </div>
-                {getStatusBadge(searchResult.status)}
-              </div>
-              <div className="space-y-2 text-sm">
-                <p><strong>Help Types:</strong> {searchResult.helpTypes?.join(', ')}</p>
-                <p><strong>Location:</strong> {searchResult.address || searchResult.landmark || 'N/A'}</p>
-                <p><strong>Submitted:</strong> {formatDate(searchResult.createdAt)}</p>
-                {searchResult.assignedTo && (
-                  <p><strong>Assigned NGO:</strong> {searchResult.assignedTo.organizationName}</p>
-                )}
-              </div>
-            </div>
+            <motion.div 
+              className="mt-6"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <RequestCard 
+                ticket={searchResult} 
+                variant="detailed"
+                actions={
+                  <button
+                    onClick={() => setSearchResult(null)}
+                    className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    Clear Search
+                  </button>
+                }
+                showActions={true}
+              />
+            </motion.div>
           )}
-        </div>
+        </motion.div>
 
         {/* SOS List Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <AlertTriangle className="w-6 h-6 text-red-600" />
-            Active SOS Requests ({sosRequests.length})
+        <motion.div 
+          className="flex items-center justify-between mb-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <div className="bg-red-100 p-2 rounded-lg">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
+            </div>
+            <span>
+              Active SOS Requests 
+              <span className="ml-2 px-3 py-1 text-lg font-bold text-red-700 bg-red-100 rounded-full">
+                {sosRequests.length}
+              </span>
+            </span>
           </h2>
           <button
             onClick={fetchSOSRequests}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-white backdrop-blur-lg rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-blue-600' : 'text-gray-600'}`} />
+            <span className="hidden sm:inline text-sm font-medium text-gray-700">Refresh</span>
           </button>
-        </div>
+        </motion.div>
 
         {/* Loading State */}
         {loading && sosRequests.length === 0 && (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading SOS requests...</p>
-          </div>
+          <motion.div 
+            className="text-center py-16"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <div className="relative inline-block">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-red-600 mx-auto mb-4"></div>
+              <AlertTriangle className="w-6 h-6 text-red-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+            </div>
+            <p className="text-gray-600 text-lg font-medium">Loading SOS requests...</p>
+          </motion.div>
         )}
 
         {/* No SOS Requests */}
         {!loading && sosRequests.length === 0 && (
-          <div className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 p-12 text-center">
-            <div className="p-4 bg-green-100 rounded-full inline-block mb-4">
-              <CheckCircle className="w-12 h-12 text-green-600" />
+          <motion.div 
+            className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-xl border-2 border-green-200 p-12 text-center"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-full inline-block mb-4 shadow-lg">
+              <motion.div
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </motion.div>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">No Active SOS Requests</h3>
-            <p className="text-gray-600">All emergency requests have been handled. Great work!</p>
-          </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">No Active SOS Requests</h3>
+            <p className="text-gray-600 text-lg">All emergency requests have been handled. Great work!</p>
+          </motion.div>
         )}
 
         {/* SOS Requests Grid */}
         {sosRequests.length > 0 && (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {sosRequests.map((ticket) => (
-              <div
+            {sosRequests.map((ticket, index) => (
+              <RequestCard
                 key={ticket.ticketId}
-                className="glass-card bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-2xl shadow-xl border border-white/60 overflow-hidden hover:shadow-2xl transition-all"
-              >
-                {/* Card Header */}
-                <div className="bg-gradient-to-r from-red-500 to-rose-600 p-4 text-white">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold flex items-center gap-1">
-                      <AlertTriangle className="w-4 h-4" />
-                      SOS EMERGENCY
-                    </span>
-                    <span className="px-2 py-1 bg-white/20 backdrop-blur rounded text-xs font-mono">
-                      {ticket.ticketId}
-                    </span>
-                  </div>
-                  <p className="text-xs opacity-90">
-                    Priority: {ticket.triageLevel?.toUpperCase() || 'HIGH'}
-                  </p>
-                </div>
-
-                {/* Card Body */}
-                <div className="p-4 space-y-3">
-                  <div>
-                    <p className="text-xs text-gray-600 mb-1">Help Needed:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {ticket.helpTypes?.map((type, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded"
-                        >
-                          {type}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-600 mb-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      Location:
-                    </p>
-                    <p className="text-sm text-gray-900">
-                      {ticket.address || ticket.landmark || 'Location pending'}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-600 mb-1 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      Submitted:
-                    </p>
-                    <p className="text-sm text-gray-900">{formatDate(ticket.createdAt)}</p>
-                  </div>
-
-                  {ticket.totalBeneficiaries > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">People affected:</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {ticket.totalBeneficiaries} people
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="pt-3 border-t border-gray-200">
-                    <p className="text-xs text-gray-600 mb-1">Status:</p>
-                    <div className="flex items-center justify-between">
-                      {getStatusBadge(ticket.status)}
-                      {ticket.assignedTo && (
-                        <div className="flex items-center gap-1 text-xs text-green-700">
-                          <Package className="w-3 h-3" />
-                          <span>Assigned</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {ticket.assignedTo && (
-                    <div className="p-2 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-xs text-green-800">
-                        <strong>NGO:</strong> {ticket.assignedTo.organizationName}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                ticket={ticket}
+                variant="compact"
+                onClick={() => {
+                  // Handle click - could open modal or navigate
+                  console.log('Clicked ticket:', ticket.ticketId);
+                }}
+              />
             ))}
           </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 mt-12 py-6 text-center text-gray-600 text-sm">
-        <p>DisasterAid - Emergency Response System</p>
-        <p className="mt-2">Data updates every 30 seconds</p>
+      <footer className="relative z-10 mt-12 py-6 text-center text-gray-600 text-sm bg-white/40 backdrop-blur-sm">
+        <p className="font-semibold text-gray-800">DisasterAid - Emergency Response System</p>
+        <p className="mt-2">Data updates every 30 seconds automatically</p>
       </footer>
     </div>
   );
