@@ -12,6 +12,7 @@ import AuthorityDashboard from "../components/authority/AuthorityDashboard";
 import DispatcherDashboard from "../components/dispatcher/DispatcherDashboard";
 import AppHeader from "../components/common/AppHeader";
 import DispatcherTrackingMap from "../components/maps/DispatcherTrackingMap";
+import Toast from "../components/common/Toast";
 
 const Dashboard = () => {
   const { user, logout } = useContext(AuthContext);
@@ -40,16 +41,23 @@ const Dashboard = () => {
   const [isCharging, setIsCharging] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [toast, setToast] = useState(null);
   
   // File upload state
   const [files, setFiles] = useState([]);
   const [uploadError, setUploadError] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [showCameraCapture, setShowCameraCapture] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
   
   // Accepted file types
   const acceptedTypes = {
     'image/jpeg': ['.jpg', '.jpeg'],
     'image/png': ['.png'],
+    'video/mp4': ['.mp4'],
+    'video/quicktime': ['.mov'],
+    'video/x-msvideo': ['.avi'],
+    'video/webm': ['.webm'],
     'audio/mpeg': ['.mp3'],
     'audio/wav': ['.wav'],
     'audio/ogg': ['.ogg']
@@ -65,16 +73,21 @@ const Dashboard = () => {
     );
 
     if (invalidFiles.length > 0) {
-      setUploadError('Please upload only images (JPG, PNG) or audio files (MP3, WAV, OGG)');
+      setUploadError('Please upload only images (JPG, PNG), videos (MP4, MOV, AVI, WEBM) or audio files (MP3, WAV, OGG)');
       return;
     }
 
-    // Validate total size (10MB limit per file)
-    const MAX_SIZE = 10 * 1024 * 1024; // 10MB in bytes
-    const oversizedFiles = selectedFiles.filter(file => file.size > MAX_SIZE);
+    // Validate total size (50MB limit per file for videos, 10MB for others)
+    const validateFileSize = (file) => {
+      const isVideo = file.type.startsWith('video/');
+      const MAX_SIZE = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024; // 50MB for video, 10MB for others
+      return file.size <= MAX_SIZE;
+    };
+    
+    const oversizedFiles = selectedFiles.filter(file => !validateFileSize(file));
     
     if (oversizedFiles.length > 0) {
-      setUploadError('Each file must be less than 10MB');
+      setUploadError('Images/Audio must be less than 10MB, Videos must be less than 50MB');
       return;
     }
 
@@ -89,6 +102,55 @@ const Dashboard = () => {
 
   const isImage = (file) => file.type.startsWith('image/');
   const isAudio = (file) => file.type.startsWith('audio/');
+  const isVideo = (file) => file.type.startsWith('video/');
+
+  // Camera capture functionality
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' }, // Use back camera on mobile
+        audio: false 
+      });
+      setCameraStream(stream);
+      setShowCameraCapture(true);
+      setUploadError(null);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      setUploadError('Unable to access camera. Please check permissions.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setShowCameraCapture(false);
+  };
+
+  const capturePhoto = () => {
+    const video = document.getElementById('camera-preview');
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+    
+    canvas.toBlob((blob) => {
+      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      setFiles(prev => [...prev, file]);
+      stopCamera();
+    }, 'image/jpeg', 0.9);
+  };
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [cameraStream]);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -215,7 +277,10 @@ const Dashboard = () => {
           setPendingRequests(updatedQueue);
           
           console.log(`Queued request ${request.id} submitted successfully`);
-          alert(`✅ Queued emergency request submitted! Ticket ID: ${res.data.ticketId}`);
+          setToast({
+            message: `✅ Queued emergency request submitted! Ticket ID: ${res.data.ticketId}`,
+            type: 'success'
+          });
         }
       } catch (error) {
         console.error(`Failed to submit queued request ${request.id}:`, error);
@@ -285,7 +350,10 @@ const Dashboard = () => {
         });
         setIsSOS(false);
       } else {
-        alert("Failed to submit request. Please try again.");
+        setToast({
+          message: "Failed to submit request. Please try again.",
+          type: 'error'
+        });
       }
 
     } catch (error) {
@@ -295,7 +363,10 @@ const Dashboard = () => {
       if (networkStrength < 20 || !navigator.onLine || error.message.includes('Network')) {
         const queueId = saveRequestToQueue(formDataToSend);
         if (queueId) {
-          alert("⚠️ Network is weak. Your request has been saved and will be submitted automatically when connection improves.");
+          setToast({
+            message: "⚠️ Network is weak. Your request has been saved and will be submitted automatically when connection improves.",
+            type: 'warning'
+          });
           
           // Clear form
           setFormData({
@@ -313,10 +384,16 @@ const Dashboard = () => {
           });
           setIsSOS(false);
         } else {
-          alert("Failed to save request. Please try again.");
+          setToast({
+            message: "Failed to save request. Please try again.",
+            type: 'error'
+          });
         }
       } else {
-        alert("Something went wrong. Please check your network or try again.");
+        setToast({
+          message: "Something went wrong. Please check your network or try again.",
+          type: 'error'
+        });
       }
     } finally {
       setLoadingTickets(false);
@@ -1153,6 +1230,17 @@ const Dashboard = () => {
                   </div>
                   
                   <div className="space-y-4">
+                    {/* Camera Capture Button */}
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <Camera className="w-5 h-5" />
+                      Capture Photo with Camera
+                    </button>
+
+                    {/* File Upload Area */}
                     <label 
                       className="group border-2 border-dashed border-gray-300 hover:border-indigo-400 rounded-xl p-8 text-center transition-all cursor-pointer block relative bg-gradient-to-br from-indigo-50/20 to-purple-50/20 hover:from-indigo-50/40 hover:to-purple-50/40"
                       onDragOver={(e) => e.preventDefault()}
@@ -1164,21 +1252,26 @@ const Dashboard = () => {
                       <input
                         type="file"
                         multiple
-                        accept=".jpg,.jpeg,.png,.mp3,.wav,.ogg"
+                        accept=".jpg,.jpeg,.png,.mp4,.mov,.avi,.webm,.mp3,.wav,.ogg"
                         onChange={handleFileSelect}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         disabled={uploading}
                       />
                       <div className="p-3 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl inline-block mb-3">
-                        <Camera className="w-10 h-10 text-indigo-600" />
+                        <FileText className="w-10 h-10 text-indigo-600" />
                       </div>
                       <p className="text-gray-700 font-semibold mb-1">
                         {uploading ? 'Uploading...' : 'Click or drag files here'}
                       </p>
                       <p className="text-gray-500 text-sm">
-                        Upload photos or audio files (JPG, PNG, MP3, WAV, OGG)
+                        Upload photos, videos or audio files
                       </p>
-                      <p className="text-gray-500 text-sm mt-1">Max 10MB per file</p>
+                      <p className="text-gray-500 text-xs mt-1">
+                        Images/Audio: Max 10MB | Videos: Max 50MB
+                      </p>
+                      <p className="text-gray-400 text-xs mt-1">
+                        Supported: JPG, PNG, MP4, MOV, AVI, WEBM, MP3, WAV, OGG
+                      </p>
                     </label>
 
                     {uploadError && (
@@ -1197,6 +1290,14 @@ const Dashboard = () => {
                                   src={URL.createObjectURL(file)}
                                   alt={`Upload preview ${index + 1}`}
                                   className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : isVideo(file) ? (
+                              <div className="aspect-square rounded-xl overflow-hidden bg-gray-100 border-2 border-gray-200 shadow-md group-hover:shadow-xl transition-all">
+                                <video
+                                  src={URL.createObjectURL(file)}
+                                  className="w-full h-full object-cover"
+                                  controls
                                 />
                               </div>
                             ) : isAudio(file) && (
@@ -1645,6 +1746,66 @@ const Dashboard = () => {
             setSelectedTicket(null);
           }}
         />
+      )}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Camera Capture Modal */}
+      {showCameraCapture && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Camera className="w-6 h-6" />
+                Camera Capture
+              </h3>
+              <button
+                onClick={stopCamera}
+                className="text-white hover:bg-white/20 rounded-lg p-2 transition-all"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="relative bg-black rounded-xl overflow-hidden mb-4">
+                <video
+                  id="camera-preview"
+                  ref={(video) => {
+                    if (video && cameraStream) {
+                      video.srcObject = cameraStream;
+                      video.play();
+                    }
+                  }}
+                  className="w-full h-auto"
+                  autoPlay
+                  playsInline
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={capturePhoto}
+                  className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Camera className="w-5 h-5" />
+                  Capture Photo
+                </button>
+                <button
+                  onClick={stopCamera}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
     
