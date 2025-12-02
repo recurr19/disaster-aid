@@ -15,12 +15,17 @@ const RegisteredNGO = require('./models/RegisteredNGO');
 const Ticket = require('./models/Ticket');
 const TicketAssignment = require('./models/TicketAssignment');
 const { matchTicket } = require('./utils/matching');
+const devRoutes = require('./routes/devRoutes');
 
 // Load environment variables
 dotenv.config();
 
 // Connect to MongoDB
 connectDB();
+
+// Initialize DB query tracking
+const { instrumentMongoose } = require('./middleware/dbAnalyticsMiddleware');
+instrumentMongoose();
 
 // Ensure geo indexes for RegisteredNGO exist (for $geoNear)
 RegisteredNGO.createIndexes().catch((e) => {
@@ -36,6 +41,10 @@ Realtime.init(server);
 app.use(express.json());
 app.use(cors());
 
+// API Analytics Middleware - track all requests
+const { analyticsMiddleware } = require('./middleware/analyticsMiddleware');
+app.use(analyticsMiddleware);
+
 // Static files: serve uploaded proof files
 const uploadsPath = path.join(__dirname, 'uploads');
 app.use('/uploads', express.static(uploadsPath));
@@ -46,6 +55,7 @@ app.use("/api/tickets", ticketRoutes);
 app.use("/api/authority", authorityRoutes);
 app.use("/api/ngo", ngoRoutes);
 app.use("/api/tracker", trackerRoutes);
+app.use('/api/dev', devRoutes);
 app.use("/api/dispatcher", dispatcherRoutes);
 
 // Default route

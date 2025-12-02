@@ -4,8 +4,7 @@ import Landing from './pages/Landing';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import StatusMap from './pages/StatusMap';
-import NGOServiceHeatMap from './pages/NGOServiceHeatMap';
+import DeveloperDashboard from './pages/DeveloperDashboard';
 import TrackSOS from './pages/TrackSOS';
 
 function App() {
@@ -23,10 +22,8 @@ function App() {
           {/* Dashboard route */}
           <Route path="/dashboard/:role" element={<Dashboard />} />
 
-          {/* Status Map route */}
-          <Route path="/status-map" element={<StatusMap />} />
-
-          <Route path="/ngo-heat-map" element={<NGOServiceHeatMap />} />
+          {/* Developer tools (internal) */}
+          <Route path="/developer" element={<DeveloperDashboard />} />
           
           {/* Track SOS Requests (Public) */}
           <Route path="/track-sos" element={<TrackSOS />} />

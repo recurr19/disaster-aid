@@ -393,17 +393,10 @@ const Landing = () => {
               </button>
               <span className="text-gray-400">•</span>
               <button
-                onClick={(e) => { e.stopPropagation(); navigate('/status-map'); }}
-                className="text-gray-600 hover:text-gray-700"
+                onClick={(e) => { e.stopPropagation(); navigate('/developer'); }}
+                className="text-rose-600 hover:text-rose-700 font-medium"
               >
-                View Status Map
-              </button>
-              <span className="text-gray-400">•</span>
-              <button
-                onClick={(e) => { e.stopPropagation(); navigate('/ngo-heat-map'); }}
-                className="text-gray-600 hover:text-gray-700"
-              >
-                NGO Service Coverage
+                Developer Dashboard
               </button>
             </div>
           </motion.div>
