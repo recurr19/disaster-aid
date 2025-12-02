@@ -1,15 +1,14 @@
 import { useEffect, useState, useContext } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, User, Package, Truck, Bell, MapPin, Target, Settings, RefreshCw, Users, Mail, Key, Activity, FileText, Shield, CheckCircle, X, Eye } from "lucide-react";
+import { Plus, Edit2, User, Package, Truck, Bell, MapPin, Target, Settings, RefreshCw, Users, Mail, Key, Activity, FileText, Shield, CheckCircle, X, Eye, Copy, Check } from "lucide-react";
 import NGOResourceForm from "./NGOResourceForm";
 import MatchedCitizensList from "./MatchedCitizensList";
 import ActiveRequestsTracker from "./ActiveRequestsTracker";
-import GenerateDispatchersModal from "./GenerateDispatchersModal";
 import DispatcherCredentialsModal from "../modals/DispatcherCredentialsModal";
 import { listNGOMatches, acceptAssignment, rejectAssignment } from "../../api/ngo";
 import { updateTicketStatus } from "../../api/tracker";
 import { connectRealtime } from "../../api/realtime";
-import { assignTicketToDispatcher, generateDispatchers as generateDispatchersAPI, listDispatchers as listDispatchersAPI } from "../../api/dispatcher";
+import { assignTicketToDispatcher, listDispatchers as listDispatchersAPI } from "../../api/dispatcher";
 import { AuthContext } from '../../context/AuthContext';
 import API from '../../api/axios';
 import AppHeader from '../common/AppHeader';
@@ -47,7 +46,7 @@ export default function NGODashboard() {
   const [matchedCitizens, setMatchedCitizens] = useState([]);
   const [activeRequests, setActiveRequests] = useState([]);
   const [dispatchers, setDispatchers] = useState([]);
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [copiedItems, setCopiedItems] = useState({});
   const [generatedCredentials, setGeneratedCredentials] = useState(null);
   const [dispatchSuccess, setDispatchSuccess] = useState(null);
   const [showAssignedTicketsModal, setShowAssignedTicketsModal] = useState(false);
@@ -203,6 +202,11 @@ export default function NGODashboard() {
       // Remove the closed ticket from activeRequests
       setActiveRequests(prev => prev.filter(req => req.id !== data.ticketNumber));
       refetchDispatchers(); // Refresh dispatchers to update assigned tickets list
+    },
+    onTicketNoLongerAvailable: (data) => {
+      console.log('🚫 Ticket no longer available - removing from UI:', data.ticketId);
+      // Remove the ticket from matchedCitizens using assignmentId
+      setMatchedCitizens(prev => prev.filter(match => match.assignmentId !== data.assignmentId));
     }
   });
 
@@ -358,20 +362,15 @@ export default function NGODashboard() {
     }
   };
 
-  const handleGenerateDispatchers = async (count) => {
+  const handleCopyToClipboard = async (text, itemKey) => {
     try {
-      const res = await generateDispatchersAPI(count);
-      setDispatchers(res.dispatchers || []);
-      
-      // Show credentials modal
-      if (res.dispatchers && res.dispatchers.length > 0) {
-        setGeneratedCredentials(res.dispatchers);
-      }
-      
-      return res;
+      await navigator.clipboard.writeText(text);
+      setCopiedItems(prev => ({ ...prev, [itemKey]: true }));
+      setTimeout(() => {
+        setCopiedItems(prev => ({ ...prev, [itemKey]: false }));
+      }, 2000);
     } catch (err) {
-      console.error('Generate dispatchers failed:', err);
-      throw new Error(err.response?.data?.message || 'Failed to generate dispatchers');
+      console.error('Failed to copy to clipboard:', err);
     }
   };
 
@@ -827,13 +826,6 @@ export default function NGODashboard() {
             </div>
             <div className="flex gap-3">
               <button 
-                onClick={() => setShowGenerateModal(true)}
-                className="px-5 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                {dispatchers.length === 0 ? 'Generate Dispatchers' : 'Add More Dispatchers'}
-              </button>
-              <button 
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-white/80 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
               >
@@ -920,17 +912,43 @@ export default function NGODashboard() {
 
                     <div className="space-y-3">
                       <div className="bg-gray-50 rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Mail className="w-3 h-3 text-gray-500" />
-                          <span className="text-xs text-gray-500 font-medium">Email</span>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-3 h-3 text-gray-500" />
+                            <span className="text-xs text-gray-500 font-medium">Email</span>
+                          </div>
+                          <button
+                            onClick={() => handleCopyToClipboard(dispatcher.email, `email-${dispatcher._id}`)}
+                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                            title="Copy email"
+                          >
+                            {copiedItems[`email-${dispatcher._id}`] ? (
+                              <Check className="w-3 h-3 text-green-600" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-gray-500" />
+                            )}
+                          </button>
                         </div>
                         <p className="text-sm font-mono text-gray-900">{dispatcher.email}</p>
                       </div>
 
                       <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Key className="w-3 h-3 text-yellow-600" />
-                          <span className="text-xs text-yellow-600 font-medium">Generated Password</span>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <Key className="w-3 h-3 text-yellow-600" />
+                            <span className="text-xs text-yellow-600 font-medium">Generated Password</span>
+                          </div>
+                          <button
+                            onClick={() => handleCopyToClipboard(dispatcher.generatedPassword, `password-${dispatcher._id}`)}
+                            className="p-1 hover:bg-yellow-200 rounded transition-colors"
+                            title="Copy password"
+                          >
+                            {copiedItems[`password-${dispatcher._id}`] ? (
+                              <Check className="w-3 h-3 text-green-600" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-yellow-600" />
+                            )}
+                          </button>
                         </div>
                         <code className="text-sm font-mono text-yellow-800 bg-yellow-100 px-2 py-1 rounded">
                           {dispatcher.generatedPassword}
@@ -1235,15 +1253,6 @@ export default function NGODashboard() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Generate Dispatchers Modal */}
-      {showGenerateModal && (
-        <GenerateDispatchersModal
-          onClose={() => setShowGenerateModal(false)}
-          onGenerate={handleGenerateDispatchers}
-          existingCount={dispatchers.length}
-        />
       )}
 
       {/* Dispatcher Credentials Modal */}

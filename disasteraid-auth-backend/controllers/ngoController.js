@@ -18,9 +18,12 @@ exports.listMatches = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    // Filter out assignments where ticket is not active or ticket is null
+    const activeAssignments = assignments.filter(a => a.ticket && a.ticket.status === 'active');
+
     res.json({
       success: true,
-      assignments: assignments.map(a => ({
+      assignments: activeAssignments.map(a => ({
         assignmentId: a._id,
         status: a.status,
         isSOS: a.isSOS,
@@ -83,6 +86,13 @@ exports.acceptAssignment = async (req, res) => {
     ticket.assignmentHistory.push({ ngo: assignment.ngo, assignedAt: new Date(), note: 'NGO accepted assignment' });
     await ticket.save();
 
+    // Find all other NGOs who have proposals for this ticket
+    const otherAssignments = await TicketAssignment.find({
+      ticket: ticket._id,
+      status: 'proposed',
+      ngo: { $ne: assignment.ngo } // Exclude the accepting NGO
+    }).lean();
+
     // Send webhook notification for assignment acceptance
     Realtime.emit('ngo:assignment:accepted:database', {
       ngoId: String(ngoProfile._id),
@@ -100,6 +110,16 @@ exports.acceptAssignment = async (req, res) => {
         Realtime.emit(`ticket:update:${ticket.ticketId}`, { type: 'accepted', ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm, etaMinutes: assignment.etaMinutes }, { ticketId: ticket.ticketId });
         // Emit to NGO room and webhook
         Realtime.emit('assignment:accepted', { ticketId: ticket.ticketId, ngoId: String(assignment.ngo), distanceKm: assignment.distanceKm ?? null, etaMinutes: assignment.etaMinutes ?? null }, { ngoId: String(assignment.ngo) });
+        
+        // Notify other NGOs that ticket is no longer available
+        for (const otherAssignment of otherAssignments) {
+          Realtime.emit('ticket:no-longer-available', { 
+            ticketId: ticket.ticketId,
+            assignmentId: otherAssignment._id,
+            reason: 'accepted-by-another-ngo',
+            acceptedBy: String(assignment.ngo)
+          }, { ngoId: String(otherAssignment.ngo) });
+        }
       } catch (e) {
         console.error('Notify ngoAccepted failed:', e);
       }

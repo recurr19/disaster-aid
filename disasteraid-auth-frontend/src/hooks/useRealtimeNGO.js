@@ -10,6 +10,7 @@ import { connectRealtime, getSocket } from '../api/realtime';
  * @param {function} onAssignmentUpdate - Callback when assignment status changes
  * @param {function} onTicketUpdate - Callback when ticket status changes
  * @param {function} onDispatcherUpdate - Callback when dispatcher assignments change
+ * @param {function} onTicketNoLongerAvailable - Callback when ticket is accepted by another NGO
  */
 export function useRealtimeNGO(ngoId, callbacks = {}) {
   const {
@@ -18,7 +19,8 @@ export function useRealtimeNGO(ngoId, callbacks = {}) {
     onProposals,
     onTicketUpdate,
     onDispatcherUpdate,
-    onTicketClosed
+    onTicketClosed,
+    onTicketNoLongerAvailable
   } = callbacks;
 
   useEffect(() => {
@@ -75,6 +77,14 @@ export function useRealtimeNGO(ngoId, callbacks = {}) {
       }
     };
 
+    // Listen to ticket no longer available (accepted by another NGO)
+    const handleTicketNoLongerAvailable = (data) => {
+      console.log('🚫 Ticket no longer available:', data);
+      if (onTicketNoLongerAvailable) {
+        onTicketNoLongerAvailable(data);
+      }
+    };
+
     // Register listeners
     socket.on('assignment:proposed', handleProposal);
     socket.on('assignment:accepted', handleAssignmentAccepted);
@@ -82,6 +92,7 @@ export function useRealtimeNGO(ngoId, callbacks = {}) {
     socket.on('ticket:created', handleTicketUpdate);
     socket.on('dispatcher:ticket:assigned', handleDispatcherUpdate);
     socket.on('ngo:ticket:closed', handleTicketClosed);
+    socket.on('ticket:no-longer-available', handleTicketNoLongerAvailable);
     
     // Pattern-based ticket updates (ticket:update:<ticketId>)
     // For this, we'll use a wildcard listener if available, or listen to specific events
@@ -107,9 +118,10 @@ export function useRealtimeNGO(ngoId, callbacks = {}) {
       socket.off('ticket:created', handleTicketUpdate);
       socket.off('dispatcher:ticket:assigned', handleDispatcherUpdate);
       socket.off('ngo:ticket:closed', handleTicketClosed);
+      socket.off('ticket:no-longer-available', handleTicketNoLongerAvailable);
       socket.offAny();
     };
-  }, [ngoId, onNewProposal, onAssignmentUpdate, onTicketUpdate, onProposals, onDispatcherUpdate, onTicketClosed]);
+  }, [ngoId, onNewProposal, onAssignmentUpdate, onTicketUpdate, onProposals, onDispatcherUpdate, onTicketClosed, onTicketNoLongerAvailable]);
 }
 
 export default useRealtimeNGO;
