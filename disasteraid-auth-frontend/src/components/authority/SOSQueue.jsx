@@ -15,36 +15,78 @@ const SOSQueue = ({ tickets }) => {
     const load = async () => {
       try {
         setLoading(true);
-        // Fetch full tickets so we can show reporter info and status
-        const res = await API.get('/tickets');
-        if (!mounted) return;
-        if (res.data && res.data.success) {
-          const all = res.data.tickets || [];
-          // Filter SoS tickets
-          const sos = all.filter(t => t.isSOS);
-          // Map to items
-          const mapped = sos.map(t => ({
-            id: t.ticketId,
-            location: (t.assignedTo && t.assignedTo.location) || t.address || 'Unknown area',
-            people: (t.helpTypes || []).length || '—',
-            status: t.status || 'new',
-            raw: t
-          }));
-          // Sort: active/open/new first, matched/assigned middle, closed last
-          const rank = s => {
-            const st = (s || '').toString().toLowerCase();
-            if (['new','active','open'].includes(st)) return 0;
-            if (['matched','assigned','accepted'].includes(st)) return 1;
-            return 2;
-          };
-          mapped.sort((a,b) => {
-            const r = rank(a.status) - rank(b.status);
-            if (r !== 0) return r;
-            // recent first
-            return new Date(b.raw.createdAt) - new Date(a.raw.createdAt);
+        let sosList = [];
+
+        // If parent provided tickets (FeatureCollection or array), use that to avoid fetching
+        if (tickets) {
+          const features = tickets.type === 'FeatureCollection' ? (tickets.features || []) : (Array.isArray(tickets) ? tickets : []);
+          sosList = features.filter(f => f.properties && f.properties.isSOS).map(f => {
+            const p = f.properties || {};
+            const reported = p.totalBeneficiaries || ((p.adults || 0) + (p.children || 0) + (p.elderly || 0)) || (p.helpTypes ? p.helpTypes.length : 0);
+            return {
+              id: p.ticketId,
+              location: (p.assignedTo && p.assignedTo.location) || p.address || 'Unknown area',
+              people: reported || '—',
+              status: p.status || 'new',
+              raw: { ...p, createdAt: p.createdAt }
+            };
           });
-          setItems(mapped);
+        } else {
+          // Fallback: fetch full tickets list (only when no parent data available)
+          const res = await API.get('/tickets');
+          if (!mounted) return;
+          if (res.data && res.data.success) {
+            const all = res.data.tickets || [];
+            const sos = all.filter(t => t.isSOS);
+            sosList = sos.map(t => {
+              const reported = t.totalBeneficiaries || ((t.adults || 0) + (t.children || 0) + (t.elderly || 0)) || (t.helpTypes ? t.helpTypes.length : 0);
+              return ({
+                id: t.ticketId,
+                location: (t.assignedTo && t.assignedTo.location) || t.address || 'Unknown area',
+                people: reported || '—',
+                status: t.status || 'new',
+                raw: t
+              });
+            });
+          }
         }
+
+        // Sort: active/open/new first, matched/assigned middle, closed last
+        const rank = s => {
+          const st = (s || '').toString().toLowerCase();
+          if (['new','active','open'].includes(st)) return 0;
+          if (['matched','assigned','accepted'].includes(st)) return 1;
+          return 2;
+        };
+        sosList.sort((a,b) => {
+          const r = rank(a.status) - rank(b.status);
+          if (r !== 0) return r;
+          // recent first
+          return new Date((b.raw && b.raw.createdAt) || 0) - new Date((a.raw && a.raw.createdAt) || 0);
+        });
+
+        setItems(sosList);
+        // Eagerly fetch detailed status (assignments, assignmentHistory, coords) for SOS items
+        (async () => {
+          for (const it of sosList) {
+            try {
+              // Only fetch if assignments or assignmentHistory or locationGeo missing
+              const needs = !(it.raw && (it.raw.assignments || it.raw.assignmentHistory || (it.raw.locationGeo && it.raw.locationGeo.coordinates && it.raw.locationGeo.coordinates.length > 0)));
+              if (!needs) continue;
+              setLoadingMap(m => ({ ...m, [it.id]: true }));
+              const res = await getTrackerStatus(it.id);
+              if (res && res.success && res.ticket) {
+                setItems(prev => prev.map(p => p.id === it.id ? ({ ...p, raw: { ...p.raw, ...res.ticket, assignments: res.assignments || p.raw?.assignments }, status: (res.ticket.status || p.status) }) : p));
+              }
+            } catch (e) {
+              console.warn('Failed prefetch tracker for', it.id, e);
+            } finally {
+              setLoadingMap(m => ({ ...m, [it.id]: false }));
+              // small pause between requests to avoid spiky load
+              await new Promise(r => setTimeout(r, 75));
+            }
+          }
+        })();
       } catch (e) {
         console.error('Failed to load tickets for SOSQueue', e);
       } finally {
@@ -66,7 +108,7 @@ const SOSQueue = ({ tickets }) => {
   };
 
   return (
-    <div className="card">
+    <div>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">SoS Queue</h2>
       <p className="text-sm text-gray-600 mb-4">Active SOS requests awaiting triage.</p>
       {loading && <div>Loading...</div>}
@@ -79,13 +121,13 @@ const SOSQueue = ({ tickets }) => {
             if (willOpen) {
               // if coordinates are missing, attempt to fetch tracker status for this ticket
               const hasCoords = item.raw && item.raw.locationGeo && item.raw.locationGeo.coordinates && item.raw.locationGeo.coordinates.length > 0;
-              if (!hasCoords) {
+                  if (!hasCoords) {
                 try {
                   setLoadingMap(m => ({ ...m, [item.id]: true }));
                   const res = await getTrackerStatus(item.id);
                   if (res && res.success && res.ticket) {
-                    // merge ticket data into items
-                    setItems(prev => prev.map(it => it.id === item.id ? ({ ...it, raw: { ...it.raw, ...res.ticket } }) : it));
+                    // merge ticket data into items (include assignments returned separately)
+                    setItems(prev => prev.map(it => it.id === item.id ? ({ ...it, raw: { ...it.raw, ...res.ticket, assignments: res.assignments || it.raw?.assignments }, status: (res.ticket.status || it.status) }) : it));
                   }
                 } catch (e) {
                   console.error('Failed to fetch tracker status for', item.id, e);
@@ -113,9 +155,14 @@ const SOSQueue = ({ tickets }) => {
                 <div className="sos-card-meta">
                   <div>
                     <p className="sos-card-title">{item.id}</p>
-                    <p className="sos-card-sub">{item.people} reported • {item.status}</p>
+                    <p className="sos-card-sub">{item.raw && item.raw.createdAt ? `${new Date(item.raw.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date(item.raw.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}</p>
                   </div>
-                  <div className="sos-card-right">
+                  <div className="sos-card-right" style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
+                    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end'}}>
+                      <div className={item.raw && item.raw.assignedTo ? 'text-sm font-medium' : 'text-sm text-gray-500'} style={{whiteSpace: 'nowrap'}}>
+                        {item.raw && item.raw.assignedTo ? (item.raw.assignedTo.organizationName || item.raw.assignedTo.name) : 'Unassigned'}
+                      </div>
+                    </div>
                     {renderBadge(item.status)}
                   </div>
                 </div>
@@ -132,12 +179,59 @@ const SOSQueue = ({ tickets }) => {
                       <div><strong>Status:</strong> {item.status}</div>
                       <div>
                         <strong>Created:</strong>{' '}
-                        {item.raw && item.raw.createdAt ? new Date(item.raw.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}{' '}
-                        {item.raw && item.raw.createdAt ? new Date(item.raw.createdAt).toLocaleTimeString(undefined, { hour12: false, hour: '2-digit', minute: '2-digit' }) : ''}
+                        {item.raw && item.raw.createdAt ? `${new Date(item.raw.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date(item.raw.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : '—'}
                       </div>
                       <div>
                         <strong>Geo location:</strong>{' '}
                         {item.raw && item.raw.locationGeo && item.raw.locationGeo.coordinates ? `[${item.raw.locationGeo.coordinates.join(', ')}]` : '—'}
+                      </div>
+
+                      <div className="mt-3">
+                        <h4 className="font-medium">Assigned To</h4>
+                        {item.raw && item.raw.assignedTo ? (
+                          <div>
+                            <div className="font-medium">{item.raw.assignedTo.organizationName || item.raw.assignedTo.name}</div>
+                            <div className="text-xs text-gray-500">{item.raw.assignedTo.phone || ''} {item.raw.assignedTo.location ? `• ${item.raw.assignedTo.location}` : ''}</div>
+                          </div>
+                        ) : (
+                          <div className="text-gray-500">Unassigned</div>
+                        )}
+                      </div>
+
+                      <div className="mt-3">
+                        <h4 className="font-medium">Assignment History</h4>
+                        {Array.isArray(item.raw && item.raw.assignmentHistory) && item.raw.assignmentHistory.length > 0 ? (
+                          <ul className="text-sm">
+                            {item.raw.assignmentHistory.map((h, idx) => (
+                              <li key={idx} className="py-1 border-b">{h.assignedAt ? `${new Date(h.assignedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date(h.assignedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : '—'} — {h.note || h.status || 'Update'}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-sm text-gray-500">No assignment history.</div>
+                        )}
+                      </div>
+
+                      <div className="mt-3">
+                        <h4 className="font-medium">Proposed Matches</h4>
+                        {Array.isArray(item.raw && item.raw.assignments) && item.raw.assignments.length > 0 ? (
+                          <table className="min-w-full text-sm">
+                            <thead>
+                              <tr className="text-left text-xs text-gray-500"><th>NGO</th><th>Score</th><th>ETA</th><th>Status</th></tr>
+                            </thead>
+                            <tbody>
+                              {item.raw.assignments.map(a => (
+                                <tr key={a.assignmentId || `${a.ngo?.id || a.ngo?.organizationName}-${a.score || ''}`} className="border-t">
+                                  <td className="py-2">{a.ngo?.organizationName || a.ngo?.name || 'Unknown'}</td>
+                                  <td className="py-2">{a.score != null ? Math.round(a.score) : '-'}</td>
+                                  <td className="py-2">{a.etaMinutes != null ? `${a.etaMinutes} min` : '-'}</td>
+                                  <td className="py-2">{a.status || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="text-sm text-gray-500">No proposals found.</div>
+                        )}
                       </div>
                     </div>
                   )}

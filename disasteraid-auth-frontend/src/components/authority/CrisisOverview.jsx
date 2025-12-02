@@ -1,4 +1,5 @@
 import React from 'react';
+import { Activity, CheckCircle, AlertTriangle } from 'lucide-react';
 import './authority.css';
 
 const CrisisOverview = ({ mapData, loading }) => {
@@ -39,33 +40,75 @@ const CrisisOverview = ({ mapData, loading }) => {
     return isSOS && !isClosed;
   }).length;
 
+  const resolvedPercent = total > 0 ? Math.round((resolvedToday / total) * 100) : 0;
+
   return (
-    <div className="card">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Crisis Overview</h2>
-      <p className="text-sm text-gray-600">Summary information and recent alerts will appear here.</p>
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 bg-white rounded-lg border-l-4 border-gray-300">
-          <p className="text-sm text-gray-700">Total Tickets</p>
-          <p className="text-2xl font-bold text-gray-900">{loading ? '…' : total}</p>
-        </div>
-        <div className="p-4 bg-white rounded-lg border-l-4 border-amber-400">
-          <p className="text-sm text-amber-800">Active Tickets</p>
-          <p className="text-2xl font-bold text-amber-600">{loading ? '…' : active}</p>
-        </div>
-        <div className="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
-          <p className="text-sm text-green-800">Resolved Today</p>
-          <p className="text-2xl font-bold text-green-600">{loading ? '…' : resolvedToday}</p>
+    <div className="crisis-overview-card">
+      <div className="co-header">
+        <div>
+          <h2 className="co-title">Crisis Overview</h2>
+          <p className="co-sub">Summary information and recent alerts will appear here.</p>
         </div>
       </div>
 
-      <div className="mt-6">
-        <div className="p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
-          <p className="text-sm text-yellow-800">Active SoS Tickets</p>
-          <p className="text-2xl font-bold text-yellow-600">{loading ? '…' : activeSoS}</p>
+      <div className="co-grid">
+        <div className="stat-card">
+          <div className="stat-left">
+            <div className="stat-icon bg-ghost">
+              <Activity className="icon" />
+            </div>
+          </div>
+          <div className="stat-main">
+            <div className="stat-label">Total Tickets</div>
+            <div className="stat-value">{loading ? '…' : total}</div>
+            <div className="stat-note">Currently tracked active incidents</div>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-left">
+            <div className="stat-icon bg-amber">
+              <AlertTriangle className="icon" />
+            </div>
+          </div>
+          <div className="stat-main">
+            <div className="stat-label">Active Tickets</div>
+            <div className="stat-value accent">{loading ? '…' : active}</div>
+            <div className="stat-note">Unassigned or in-progress (non-SOS)</div>
+          </div>
+        </div>
+
+        <div className="stat-card stat-highlight">
+          <div className="stat-left">
+            <div className="donut-wrap">
+              <svg className="donut" viewBox="0 0 36 36">
+                <path className="donut-bg" d="M18 2.0845a15.9155 15.9155 0 1 0 0 31.831 15.9155 15.9155 0 1 0 0-31.831" />
+                <path className="donut-fg" strokeDasharray={`${resolvedPercent}, 100`} d="M18 2.0845a15.9155 15.9155 0 1 0 0 31.831 15.9155 15.9155 0 1 0 0-31.831" />
+              </svg>
+            </div>
+          </div>
+          <div className="stat-main">
+            <div className="stat-label">Resolved Today</div>
+            <div className="stat-value success">{loading ? '…' : resolvedToday}</div>
+            <div className="stat-note">{resolvedPercent}% of today's tracked tickets</div>
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 text-sm text-gray-600">Total tracked tickets: {total}</div>
+      <div className="co-footer">
+        <div className="sos-panel">
+          <div className="sos-left">
+            <div className="sos-icon"><AlertTriangle className="icon" /></div>
+          </div>
+          <div className="sos-main">
+            <div className="sos-label">Active SoS Tickets</div>
+            <div className="sos-value">{loading ? '…' : activeSoS}</div>
+            <div className="sos-note">Immediate attention required</div>
+          </div>
+        </div>
+
+        <div className="co-meta">Total tracked tickets: <strong>{total}</strong></div>
+      </div>
     </div>
   );
 };

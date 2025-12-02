@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import './authority.css';
 import { getMapData } from '../../api/authority';
 import TicketDetail from './TicketDetail';
+import { prefetchMany, getCachedTracker } from '../../utils/trackerCache';
 
-const AssignmentsList = () => {
+const AssignmentsList = ({ tickets }) => {
   const [loading, setLoading] = useState(false);
-  const [tickets, setTickets] = useState([]);
+  const [localTickets, setLocalTickets] = useState([]);
   const [error, setError] = useState(null);
   const [selectedTicketId, setSelectedTicketId] = useState(null);
 
@@ -14,14 +15,32 @@ const AssignmentsList = () => {
     const load = async () => {
       try {
         setLoading(true);
+        // If parent provided tickets (FeatureCollection), use it to avoid refetch
+        if (tickets) {
+          const features = tickets.type === 'FeatureCollection' ? (tickets.features || []) : (Array.isArray(tickets) ? tickets : []);
+          const feats = features.filter(f => !(f.properties && f.properties.isSOS));
+          setLocalTickets(feats);
+          // Prefetch tracker details for these tickets in background for snappier open
+          try {
+            const ids = feats.map(f => (f.properties || {}).ticketId).filter(Boolean).filter(id => !getCachedTracker(id));
+            if (ids.length > 0) prefetchMany(ids, { delayMs: 60 });
+          } catch (e) { /* ignore */ }
+          return;
+        }
+
         const res = await getMapData();
         if (!mounted) return;
         if (res && res.success && res.tickets && res.tickets.type === 'FeatureCollection') {
             // Exclude SoS tickets from assignments list
             const feats = (res.tickets.features || []).filter(f => !(f.properties && f.properties.isSOS));
-            setTickets(feats);
+            setLocalTickets(feats);
+            // Prefetch tracker details for these tickets in background for snappier open
+            try {
+              const ids = feats.map(f => (f.properties || {}).ticketId).filter(Boolean).filter(id => !getCachedTracker(id));
+              if (ids.length > 0) prefetchMany(ids, { delayMs: 60 });
+            } catch (e) { /* ignore */ }
         } else {
-          setTickets([]);
+          setLocalTickets([]);
         }
       } catch (e) {
         console.error('Failed to load authority map / tickets', e);
@@ -32,23 +51,23 @@ const AssignmentsList = () => {
     };
     load();
     return () => { mounted = false; };
-  }, []);
+  }, [tickets]);
 
   return (
-    <div className="card">
+    <div>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Assignments — Ticket Status</h2>
       <p className="text-sm text-gray-600 mb-4">List of tickets with current assignment and status.</p>
 
       {loading && <div>Loading tickets...</div>}
       {error && <div className="text-red-600">{error}</div>}
 
-      {!loading && tickets.length === 0 && (
+      {!loading && localTickets.length === 0 && (
         <div className="text-sm text-gray-500">No tickets with geo data available.</div>
       )}
 
-      {!loading && tickets.length > 0 && (
+      {!loading && localTickets.length > 0 && (
         <div className="space-y-4">
-          {tickets.map(f => {
+          {localTickets.map(f => {
             const p = f.properties || {};
             const assigned = p.assignedTo || null;
             const isOpen = selectedTicketId === p.ticketId;
@@ -73,13 +92,15 @@ const AssignmentsList = () => {
                   <div className="sos-card-meta">
                     <div>
                       <p className="sos-card-title">{p.ticketId}</p>
-                      <p className="sos-card-sub">{p.createdAt ? new Date(p.createdAt).toLocaleString() : '-'}</p>
+                      <p className="sos-card-sub">{p.createdAt ? `${new Date(p.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date(p.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : '-'}</p>
                     </div>
-                    <div className="sos-card-right">
-                      <span className={cls}>{st}</span>
-                      <div style={{marginLeft: '0.5rem'}}>
-                        {assigned ? <div className="text-sm font-medium">{assigned.organizationName}</div> : <div className="text-sm text-gray-500">Unassigned</div>}
+                    <div className="sos-card-right" style={{display: 'flex', alignItems: 'center', gap: '0.75rem'}}>
+                      <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end'}}>
+                        <div className={assigned ? 'text-sm font-medium' : 'text-sm text-gray-500'}>
+                          {assigned ? (assigned.organizationName || assigned.name) : 'Unassigned'}
+                        </div>
                       </div>
+                      <span className={cls}>{st}</span>
                     </div>
                   </div>
                 </div>

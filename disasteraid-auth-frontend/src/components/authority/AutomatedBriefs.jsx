@@ -126,7 +126,7 @@ const AutomatedBriefs = ({ mapData }) => {
   };
 
   return (
-    <div className="card">
+    <div>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Automated Briefs</h2>
       <p className="text-sm text-gray-600">Generate plain-English situation briefs for stakeholders. Briefs include counts, short trends, shelter capacity notes and suggested actions.</p>
       <div className="mt-4 grid grid-cols-1 gap-3">

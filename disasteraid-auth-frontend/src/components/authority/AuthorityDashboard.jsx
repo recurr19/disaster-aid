@@ -39,12 +39,15 @@ const AuthorityDashboard = ({ user, onLogout }) => {
         if (res.data?.success) {
           const ticketsFC = res.data.tickets || { type: 'FeatureCollection', features: [] };
           const overlays = res.data.overlays || {};
-          // Only include active tickets in map/heat calculations
-          const activeFeatures = (ticketsFC.features || []).filter(f => {
+          // Keep the full tickets FeatureCollection in `mapData` so lists (SOS/Assignments)
+          // can show closed tickets as well. For map/heat calculations we compute activeFeatures
+          // separately (tickets that are not closed/resolved/canceled).
+          const allFeatures = (ticketsFC.features || []);
+          const activeFeatures = allFeatures.filter(f => {
             const status = f.properties && f.properties.status ? String(f.properties.status).toLowerCase() : '';
             return status !== 'closed' && status !== 'resolved' && status !== 'canceled';
           });
-          const newMapData = { tickets: { type: 'FeatureCollection', features: activeFeatures }, overlays };
+          const newMapData = { tickets: { type: 'FeatureCollection', features: allFeatures }, overlays };
           setMapData(newMapData);
           const points = activeFeatures.map(f => {
             const coords = f.geometry?.coordinates;
@@ -55,7 +58,7 @@ const AuthorityDashboard = ({ user, onLogout }) => {
           setHeatPoints(points);
           setSOSCount(activeFeatures.filter(f => f.properties?.isSOS).length);
           // If authority endpoint returned data, use it and return early
-          if ((ticketsFC.features || []).length > 0) return newMapData;
+          if (allFeatures.length > 0) return newMapData;
         }
       } catch (err) {
         // If '/authority/map' fails (403 when not an authority, network, etc.), we'll fallback below
@@ -85,16 +88,14 @@ const AuthorityDashboard = ({ user, onLogout }) => {
               }
             };
           }).filter(f => f.geometry && Array.isArray(f.geometry.coordinates));
-
-          // filter to active tickets only
+          // Keep full list of features in mapData so downstream lists can show closed tickets
+          const ticketsFC = { type: 'FeatureCollection', features };
+          const newMapData = { tickets: ticketsFC, overlays: {} };
+          setMapData(newMapData);
           const activeFeatures = features.filter(f => {
             const status = f.properties && f.properties.status ? String(f.properties.status).toLowerCase() : '';
             return status !== 'closed' && status !== 'resolved' && status !== 'canceled';
           });
-
-          const ticketsFC = { type: 'FeatureCollection', features: activeFeatures };
-          const newMapData = { tickets: ticketsFC, overlays: {} };
-          setMapData(newMapData);
           const points = activeFeatures.map(f => {
             const [lng, lat] = f.geometry.coordinates;
             return { lat, lng, intensity: f.properties?.isSOS ? 0.95 : 0.4, props: f.properties };
@@ -128,6 +129,9 @@ const AuthorityDashboard = ({ user, onLogout }) => {
     // Listen to common events emitted by the backend
     s.on('connect', refresh);
     s.on('ticket:created', refresh);
+    s.on('ticket:updated', refresh);
+    s.on('ticket:closed', refresh);
+    s.on('ticket:status:updated', refresh);
     s.on('assignment:accepted', refresh);
     s.on('assignment:proposed', refresh);
     s.on('overlays:changed', refresh);
@@ -141,6 +145,9 @@ const AuthorityDashboard = ({ user, onLogout }) => {
       try {
         s.off('connect', refresh);
         s.off('ticket:created', refresh);
+        s.off('ticket:updated', refresh);
+        s.off('ticket:closed', refresh);
+        s.off('ticket:status:updated', refresh);
         s.off('assignment:accepted', refresh);
         s.off('assignment:proposed', refresh);
         s.off('overlays:changed', refresh);
@@ -208,7 +215,7 @@ const AuthorityDashboard = ({ user, onLogout }) => {
         </div>
         {activeTab === 'overview' && <CrisisOverview mapData={mapData} loading={loadingMap} />}
         {activeTab === 'sos' && <SOSQueue tickets={(mapData && mapData.tickets) ? mapData.tickets : null} />}
-        {activeTab === 'assignments' && <AssignmentBoard onAssigned={() => {
+        {activeTab === 'assignments' && <AssignmentBoard tickets={(mapData && mapData.tickets) ? mapData.tickets : null} onAssigned={() => {
           // refresh map data after an assignment is made
           (async () => {
             try {

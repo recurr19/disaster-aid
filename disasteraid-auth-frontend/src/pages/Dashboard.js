@@ -1551,7 +1551,7 @@ const Dashboard = () => {
                               <div className="flex-1">
                                 <div className="flex items-center justify-between">
                                   <p className="font-medium text-gray-900">{h.note || 'Status updated'}</p>
-                                  <p className="text-xs text-gray-500">{new Date(h.assignedAt).toLocaleString()}</p>
+                                  <p className="text-xs text-gray-500">{`${new Date(h.assignedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date(h.assignedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`}</p>
                                 </div>
                               </div>
                             </div>

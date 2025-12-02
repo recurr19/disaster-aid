@@ -106,7 +106,7 @@ const AssignmentBoard = ({ onAssigned }) => {
                       </span>
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500">{new Date(t.createdAt).toLocaleString()}</div>
+                  <div className="text-xs text-gray-500">{`${new Date(t.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date(t.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`}</div>
                   <div className="text-sm text-gray-700">{t.summary}</div>
                   <div className="text-xs text-gray-600 mt-1">Assigned: {t.assignedTo ? <span className="text-green-700 font-medium">{t.assignedTo.organizationName}</span> : <span className="text-gray-500">Unassigned</span>}</div>
                 </li>

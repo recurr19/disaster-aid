@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import './authority.css';
 import { getTrackerStatus } from '../../api/tracker';
+import { getCachedTracker, setCachedTracker } from '../..//utils/trackerCache';
 
 const TicketDetail = ({ ticketId, onClose, compact = false, showIsSOS = true }) => {
   const [loading, setLoading] = useState(false);
@@ -12,11 +13,32 @@ const TicketDetail = ({ ticketId, onClose, compact = false, showIsSOS = true }) 
     let mounted = true;
     const load = async () => {
       try {
+        // Try cache first for instant render
+        const cached = getCachedTracker(ticketId);
+        if (cached) {
+          if (!mounted) return;
+          setData(cached);
+          // still attempt background refresh but do not block UI
+          (async () => {
+            try {
+              const fresh = await getTrackerStatus(ticketId);
+              if (fresh && fresh.success) {
+                setCachedTracker(ticketId, fresh);
+                if (!mounted) return;
+                setData(fresh);
+              }
+            } catch (er) { /* ignore background refresh errors */ }
+          })();
+          return;
+        }
+
         setLoading(true);
         const res = await getTrackerStatus(ticketId);
         if (!mounted) return;
-        if (res && res.success) setData(res);
-        else setError('Failed to load ticket status');
+        if (res && res.success) {
+          setData(res);
+          try { setCachedTracker(ticketId, res); } catch (e) { /* ignore */ }
+        } else setError('Failed to load ticket status');
       } catch (e) {
         console.error('getTrackerStatus failed', e);
         setError('Failed to load ticket status');
@@ -76,7 +98,7 @@ const TicketDetail = ({ ticketId, onClose, compact = false, showIsSOS = true }) 
                     {showIsSOS && (
                       <div><strong>Is SOS:</strong> {data.ticket.isSOS ? 'Yes' : 'No'}</div>
                     )}
-                    <div><strong>Created:</strong> {new Date(data.ticket.createdAt).toLocaleString()}</div>
+                    <div><strong>Created:</strong> {`${new Date(data.ticket.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date(data.ticket.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`}</div>
                     <div><strong>Help Types:</strong> {(data.ticket.helpTypes || []).length > 0 ? (data.ticket.helpTypes || []).join(', ') : '—'}</div>
                 </div>
                 <div className="mb-3">
@@ -107,7 +129,7 @@ const TicketDetail = ({ ticketId, onClose, compact = false, showIsSOS = true }) 
                   {Array.isArray(data.ticket.assignmentHistory) && data.ticket.assignmentHistory.length > 0 ? (
                     <ul className="text-sm">
                       {data.ticket.assignmentHistory.map((h, idx) => (
-                        <li key={idx} className="py-1 border-b">{new Date(h.assignedAt).toLocaleString()} — {h.note || 'Update'}</li>
+                        <li key={idx} className="py-1 border-b">{`${new Date(h.assignedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}, ${new Date(h.assignedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`} — {h.note || 'Update'}</li>
                       ))}
                     </ul>
                   ) : (

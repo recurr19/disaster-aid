@@ -4,6 +4,11 @@
   background: var(--background);
 }
 
+/* Slight page-level gradient to give depth but remain subtle and in-theme */
+.authority-dashboard-root {
+  background-image: linear-gradient(180deg, rgba(5,150,105,0.02), rgba(255,255,255,0));
+}
+
 /* === Cards === */
 .card {
   background: var(--card);
@@ -11,6 +16,23 @@
   border-radius: var(--radius);
   padding: 1.5rem;
   box-shadow: 0 6px 20px rgba(2,6,23,0.04);
+}
+
+/* subtle hover lift for generic cards used across the authority UI */
+.card {
+  transition: transform 180ms cubic-bezier(.2,.9,.3,1), box-shadow 180ms ease, border-color 160ms ease;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px rgba(2,6,23,0.08);
+  border-color: rgba(15,23,42,0.06);
+}
+
+/* Slight lift and glassy backdrop for authority cards */
+.card.card-glass {
+  background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.45));
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(0,0,0,0.04);
 }
 
 /* === Inputs === */
@@ -68,6 +90,9 @@
   box-shadow: 0 8px 28px rgba(2,6,23,0.06);
 }
 
+/* subtle micro-interaction for primary CTA */
+.button-primary:active { transform: translateY(0); box-shadow: 0 4px 18px rgba(2,6,23,0.04); }
+
 /* === Secondary Button === */
 .button-secondary {
   background: var(--accent);
@@ -113,6 +138,10 @@
 .badge-status.matched { background: var(--emergency-success); color: #fff; }
 .badge-status.closed { background: var(--muted); color: var(--muted-foreground); }
 
+/* Add gentle glowing pulse for urgent badges */
+.badge-status.active { box-shadow: 0 6px 18px rgba(220,38,38,0.12); }
+.badge-status.matched { box-shadow: 0 6px 18px rgba(5,150,105,0.08); }
+
 /* === Header & Nav Enhancements === */
 .header {
   background: var(--card);
@@ -148,6 +177,9 @@
 .nav-button:hover { color: var(--primary); background: rgba(0,0,0,0.03); transform: translateY(-1px); }
 
 .nav-button.active { color: var(--destructive); background: linear-gradient(90deg, rgba(220,38,38,0.06), rgba(255,255,255,0)); box-shadow: 0 4px 18px rgba(220,38,38,0.06); }
+
+/* Make active nav feel aligned to authority theme */
+.nav-button.active { color: var(--authority-primary); background: linear-gradient(90deg, rgba(5,150,105,0.06), rgba(255,255,255,0)); box-shadow: 0 6px 24px rgba(5,150,105,0.06); }
 
 .tabs-scroll { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; }
 
@@ -185,6 +217,7 @@
   box-shadow: 0 10px 30px rgba(2,6,23,0.06);
   border-color: rgba(15,23,42,0.09);
 }
+.sos-card { transition: transform 220ms cubic-bezier(.2,.9,.3,1), box-shadow 220ms; }
 .sos-card.open {
   border-color: rgba(189, 39, 52, 0.12);
 }
@@ -205,10 +238,120 @@
 }
 .sos-card-title { font-weight: 700; font-size: 0.95rem; color: var(--authority-primary); }
 .sos-card-sub { font-size: 0.85rem; color: var(--muted-foreground); margin-top: 0.15rem; }
+
+/* make the ticket id pop with gradient text without changing markup */
+.sos-card-title.gradient { background: linear-gradient(90deg, var(--ngo-primary), var(--authority-primary)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* === Crisis Overview enhancements === */
+.crisis-overview-card { padding: 1.25rem; }
+.co-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.co-title { font-size:1.125rem; font-weight:700; margin:0; color:var(--primary); }
+.co-sub { margin:0.25rem 0 0; font-size:0.95rem;color:var(--muted-foreground); }
+
+.co-grid { display:grid; grid-template-columns: repeat(1,1fr); gap:1rem; margin-top:1rem; }
+@media(min-width:720px){ .co-grid { grid-template-columns: repeat(3,1fr); } }
+
+.stat-card { display:flex; gap:1rem; align-items:center; background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4)); padding:1rem; border-radius:0.75rem; box-shadow:0 8px 24px rgba(2,6,23,0.04); border:1px solid var(--border); }
+
+/* give each stat card a subtle hover interaction (do not group cards) */
+.stat-card {
+  transition: transform 200ms cubic-bezier(.2,.9,.3,1), box-shadow 200ms ease, border-color 160ms ease;
+}
+.stat-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 48px rgba(2,6,23,0.08);
+  border-color: rgba(15,23,42,0.06);
+}
+.stat-left { width:64px; display:flex; align-items:center; justify-content:center; }
+.stat-icon { width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
+.stat-icon .icon { width:22px; height:22px; color:var(--primary); }
+.bg-ghost { background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(37,99,235,0.02)); }
+.bg-amber { background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.02)); }
+
+.stat-main { flex:1; min-width:0; }
+.stat-label { font-size:0.85rem; color:var(--muted-foreground); margin-bottom:0.25rem; }
+.stat-value { font-size:1.75rem; font-weight:800; color:var(--primary); }
+.stat-value.accent { color: var(--emergency-medium); }
+.stat-value.success { color: var(--emergency-success); }
+.stat-note { font-size:0.85rem; color:var(--muted-foreground); margin-top:0.25rem; }
+
+.stat-highlight { background: linear-gradient(135deg, rgba(6,95,70,0.06), rgba(6,95,70,0.02)); }
+.donut-wrap { width:64px; height:64px; display:flex; align-items:center; justify-content:center; }
+.donut { width:56px; height:56px; transform: rotate(-90deg); overflow:visible; }
+.donut-bg { fill: none; stroke: rgba(15,23,42,0.06); stroke-width: 4; }
+.donut-fg { fill: none; stroke: var(--emergency-success); stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray 400ms ease; }
+
+.co-footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-top:1rem; }
+.sos-panel { display:flex; gap:0.75rem; align-items:center; background: linear-gradient(90deg, rgba(220,38,38,0.04), rgba(255,255,255,0)); padding:0.75rem; border-radius:0.6rem; border:1px solid rgba(220,38,38,0.08); box-shadow:0 6px 18px rgba(220,38,38,0.03); }
+.sos-icon .icon { color: var(--destructive); width:20px; height:20px; }
+.sos-label { font-size:0.95rem; color:var(--destructive); font-weight:700; }
+.sos-value { font-size:1.5rem; font-weight:800; color:var(--destructive); }
+.sos-note { font-size:0.85rem; color:var(--muted-foreground); }
+.co-meta { color:var(--muted-foreground); font-size:0.9rem; }
+
+/* small responsiveness */
+@media(max-width:640px){ .stat-card { padding:0.75rem; } .stat-value { font-size:1.4rem; } .co-footer { flex-direction:column; align-items:flex-start; } }
 .sos-card-right {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* grid used for lists of items (shelters, depots etc.) — make 3 per row on desktop */
+.list-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1rem;
+}
+@media (min-width: 900px) {
+  .list-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.type-dot { display: none !important; }
+
+/* full-card tint for overlay types (increased visibility)
+  Uses a soft gradient plus a subtle colored border and inset accent
+  so the entire card reads as belonging to that overlay type. */
+.overlay-shelter { background: linear-gradient(180deg, rgba(37,99,235,0.14), rgba(255,255,255,0.03)); border: 1px solid rgba(37,99,235,0.12); box-shadow: inset 6px 0 18px rgba(37,99,235,0.04); border-left: 4px solid rgba(37,99,235,0.18); }
+.overlay-medicalcamp { background: linear-gradient(180deg, rgba(16,163,74,0.14), rgba(255,255,255,0.03)); border: 1px solid rgba(16,163,74,0.12); box-shadow: inset 6px 0 18px rgba(16,163,74,0.04); border-left: 4px solid rgba(16,163,74,0.18); }
+.overlay-depot { background: linear-gradient(180deg, rgba(124,58,237,0.14), rgba(255,255,255,0.03)); border: 1px solid rgba(124,58,237,0.12); box-shadow: inset 6px 0 18px rgba(124,58,237,0.04); border-left: 4px solid rgba(124,58,237,0.18); }
+.overlay-blockedroute { background: linear-gradient(180deg, rgba(220,38,38,0.12), rgba(255,255,255,0.03)); border: 1px solid rgba(220,38,38,0.12); box-shadow: inset 6px 0 18px rgba(220,38,38,0.04); border-left: 4px solid rgba(220,38,38,0.18); }
+.overlay-advisory { background: linear-gradient(180deg, rgba(245,158,11,0.12), rgba(255,255,255,0.03)); border: 1px solid rgba(245,158,11,0.12); box-shadow: inset 6px 0 18px rgba(245,158,11,0.04); border-left: 4px solid rgba(245,158,11,0.18); }
+
+/* Slightly intensify tint on hover so cards feel interactive */
+.card.overlay-shelter:hover, .card.overlay-medicalcamp:hover, .card.overlay-depot:hover, .card.overlay-blockedroute:hover, .card.overlay-advisory:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 44px rgba(2,6,23,0.08);
+  border-color: rgba(0,0,0,0.06);
+}
+
+/* Stronger, explicit light backgrounds for overlay cards to ensure visibility
+   and clear type distinction regardless of theme variables. These selectors
+   target `.card.overlay-<type>` specifically so they override generic `.card` styles. */
+.card.overlay-shelter {
+  background: linear-gradient(180deg, rgba(37,99,235,0.12), rgba(255,255,255,0.9));
+  color: #0f172a; /* dark text for readability */
+  border: 1px solid rgba(37,99,235,0.12);
+}
+.card.overlay-medicalcamp {
+  background: linear-gradient(180deg, rgba(16,163,74,0.12), rgba(255,255,255,0.9));
+  color: #0f172a;
+  border: 1px solid rgba(16,163,74,0.12);
+}
+.card.overlay-depot {
+  background: linear-gradient(180deg, rgba(124,58,237,0.12), rgba(255,255,255,0.9));
+  color: #0f172a;
+  border: 1px solid rgba(124,58,237,0.12);
+}
+.card.overlay-blockedroute {
+  background: linear-gradient(180deg, rgba(220,38,38,0.08), rgba(255,255,255,0.95));
+  color: #0f172a;
+  border: 1px solid rgba(220,38,38,0.10);
+}
+.card.overlay-advisory {
+  background: linear-gradient(180deg, rgba(245,158,11,0.10), rgba(255,255,255,0.95));
+  color: #0f172a;
+  border: 1px solid rgba(245,158,11,0.10);
 }
 .sos-card-chevron {
   font-size: 0.95rem;
@@ -224,6 +367,11 @@
   padding-top: 0.75rem;
   border-top: 1px dashed rgba(15,23,42,0.04);
 }
+
+/* make proposed matches table feel lighter */
+.sos-card-body table { border-collapse: collapse; width: 100%; }
+.sos-card-body table thead th { padding: 0.6rem 0.5rem; text-align: left; color: var(--muted-foreground); font-size: 0.8rem; }
+.sos-card-body table tbody td { padding: 0.6rem 0.5rem; border-top: 1px solid rgba(0,0,0,0.03); }
 
 /* Small responsive tweak */
 @media (max-width: 640px) {

@@ -13,6 +13,7 @@ import { assignTicketToDispatcher, listDispatchers as listDispatchersAPI } from 
 import { AuthContext } from '../../context/AuthContext';
 import API from '../../api/axios';
 import AppHeader from '../common/AppHeader';
+import ConfirmModal from '../common/ConfirmModal';
 import { useRealtimeNGO } from '../../hooks/useRealtimeNGO';
 
 export default function NGODashboard() {
@@ -24,6 +25,8 @@ export default function NGODashboard() {
 
   // Additional resources managed separately from profile
   const [resources, setResources] = useState([]);
+  const [confirmResourceOpen, setConfirmResourceOpen] = useState(false);
+  const [confirmResourceId, setConfirmResourceId] = useState(null);
 
   const [ngoProfile, setNgoProfile] = useState(null);
   const [profileForm, setProfileForm] = useState({
@@ -330,9 +333,22 @@ export default function NGODashboard() {
   };
 
   const handleDeleteResource = (resourceId) => {
-    if (window.confirm('Are you sure you want to delete this resource?')) {
-      setResources(resources.filter(r => r.id !== resourceId));
-    }
+    // Open custom confirmation modal instead of native confirm
+    setConfirmResourceId(resourceId);
+    setConfirmResourceOpen(true);
+  };
+
+  const handleConfirmDeleteResource = () => {
+    const id = confirmResourceId;
+    setConfirmResourceOpen(false);
+    setConfirmResourceId(null);
+    if (!id) return;
+    setResources(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleCancelDeleteResource = () => {
+    setConfirmResourceOpen(false);
+    setConfirmResourceId(null);
   };
 
   const handleDispatchTicket = async (ticketObjectId, dispatcherId) => {
@@ -820,6 +836,16 @@ export default function NGODashboard() {
               ))}
             </div>
           )}
+          {/* Confirm modal for deleting a resource */}
+          <ConfirmModal
+            open={confirmResourceOpen}
+            title="Delete resource"
+            message="Are you sure you want to delete this resource? This action cannot be undone."
+            onConfirm={handleConfirmDeleteResource}
+            onCancel={handleCancelDeleteResource}
+            confirmLabel="Delete"
+            cancelLabel="Cancel"
+          />
         </div>
       )}
 

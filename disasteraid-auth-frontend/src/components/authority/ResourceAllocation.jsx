@@ -65,7 +65,7 @@ const ResourceAllocation = () => {
   };
 
   return (
-    <div className="card">
+    <div>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Resource Allocation</h2>
       <p className="text-sm text-gray-600">Allocate resources (depots) across affected zones. These are saved as overlays.</p>
 
@@ -83,7 +83,7 @@ const ResourceAllocation = () => {
         {!loading && allocations.length === 0 && <div className="text-sm text-gray-500">No depots found.</div>}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
           {allocations.map(a => (
-            <div key={a._id} className="card">
+            <div key={a._id} className={`card overlay-${(a.type || 'depot').toLowerCase()}`}>
               <div className="flex items-center justify-between mb-2">
                 <div className="font-semibold">{a.name}</div>
                 <span className="badge-status">Depot</span>

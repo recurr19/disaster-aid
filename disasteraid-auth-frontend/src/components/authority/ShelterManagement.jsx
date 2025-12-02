@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import './authority.css';
+import ConfirmModal from '../common/ConfirmModal';
 import { listOverlays, createOverlay, updateOverlay, deleteOverlay } from '../../api/authority';
 import { MapContainer, TileLayer, Marker, CircleMarker, Polygon, Popup, useMapEvents, useMap } from 'react-leaflet';
 
@@ -19,7 +20,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
   const [drawMode, setDrawMode] = useState(false); // when true, clicks add polygon points
   const [polygonPoints, setPolygonPoints] = useState([]); // array of [lat,lng]
   const [pointMarker, setPointMarker] = useState(null); // [lat,lng]
-  const [quickAddMode, setQuickAddMode] = useState(false); // when true, clicking map auto-adds overlay
+  // Quick add removed: overlays must be created via the form (manual add)
   const [areaFocused, setAreaFocused] = useState(false);
   const [areaBounds, setAreaBounds] = useState(null); // [[south,west],[north,east]] or null
   const [areaFocusId, setAreaFocusId] = useState(null); // unique id for each programmatic focus action
@@ -69,133 +70,17 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
   // Convenience: default map center (India)
   const defaultCenter = [22.5937, 78.9629];
 
-  // Quick add overlay function - creates overlay immediately on map click
-  const quickAddOverlay = useCallback(async (lat, lng) => {
-    const currentForm = formRef.current;
-    if (!currentForm.type || currentForm.type === 'blockedRoute') return; // blockedRoute needs polygon drawing
-    // Require name to be provided explicitly for quick add
-    if (!currentForm.name || !currentForm.name.trim()) {
-      setUiWarning('Name is required for creating an overlay. Please enter a name and try again.');
-      return;
-    }
+  // Quick add removed: overlays must be created via the manual form submission
 
-    try {
-      setLoading(true);
-      const geometry = { type: 'Point', coordinates: [Number(lng), Number(lat)] };
-
-      // Generate default name if not provided (backend requires name)
-      const payload = {
-        type: currentForm.type,
-        name: currentForm.name.trim(),
-        status: currentForm.status || 'open',
-        capacity: currentForm.capacity ? Number(currentForm.capacity) : undefined,
-        properties: {
-          city: currentForm.city || undefined,
-          state: currentForm.state || undefined
-        },
-        geometry
-      };
-
-      // Create overlay
-      const result = await createOverlay(payload);
-
-      // Optimistic update - add to local state immediately for instant feedback
-      let newItem = null;
-      if (result && (result.item || result.overlay)) {
-        newItem = result.item || result.overlay;
-      } else if (result && result._id) {
-        // If API returns the created item directly
-        newItem = result;
-      } else {
-        // Construct temporary item from payload for instant feedback
-        newItem = {
-          ...payload,
-          _id: `temp-${Date.now()}`,
-          createdAt: new Date().toISOString()
-        };
-      }
-      if (newItem) {
-        setItems(prev => [...prev, newItem]);
-        // Inform parent to add overlay locally for immediate map/heatmap reflection
-        try { if (onLocalAddOverlay) onLocalAddOverlay(newItem); } catch (e) { /* ignore */ }
-      }
-
-      // Keep form type and status, but clear location-specific fields
-      setForm(f => ({ ...f, latitude: '', longitude: '' }));
-      setPointMarker(null);
-
-      // Notify parent to refresh - it will update both maps efficiently
-      if (onOverlayChange) {
-        try {
-          if (payload.type === 'blockedRoute') {
-            // Wait for parent to refresh and use returned mapData to sync local items
-            const updated = await onOverlayChange();
-            if (updated && updated.overlays) {
-              // build flat items list from overlays so the local map updates immediately
-              const list = [];
-              ['shelters', 'medicalCamps', 'depots', 'blockedRoutes', 'advisories'].forEach(k => {
-                const arr = updated.overlays[k] || [];
-                arr.forEach(a => list.push(a));
-              });
-              setItems(list);
-            } else {
-              await load();
-            }
-          } else {
-            // Fire-and-forget for non-polygon overlays
-            onOverlayChange().then((updated) => {
-              if (updated && updated.overlays) {
-                const list = [];
-                ['shelters', 'medicalCamps', 'depots', 'blockedRoutes', 'advisories'].forEach(k => {
-                  const arr = updated.overlays[k] || [];
-                  arr.forEach(a => list.push(a));
-                });
-                setItems(list);
-              } else {
-                load();
-              }
-            }).catch(() => load());
-          }
-        } catch (e) {
-          // If parent refresh failed, still try to refresh local state
-          await load();
-        }
-      } else {
-        // If no parent callback, just refresh local
-        await load();
-      }
-
-      // If we just created a blockedRoute, clear drawing mode so operator can
-      // continue without accidentally adding more points and reset polygon points.
-      if (payload.type === 'blockedRoute') {
-        try { setDrawMode(false); } catch (e) { /* ignore */ }
-        try { setPolygonPoints([]); } catch (e) { /* ignore */ }
-      }
-    } catch (e) {
-      console.error('Quick add failed', e);
-      alert('Failed to add overlay');
-      // Reload on error to sync state
-      await load();
-    } finally {
-      setLoading(false);
-    }
-  }, [load, onOverlayChange]);
-
-  const MapClickHandler = ({ mode, quickAdd }) => {
+  const MapClickHandler = ({ mode }) => {
     useMapEvents({
       click(e) {
         const { lat, lng } = e.latlng;
-        if (!areaFocused) {
-          // allow pick but surface a UI warning so operator understands the scope
-          setUiWarning('Map not focused — your pick may be outside the intended area. Use Find Area to scope.');
-        } else {
-          setUiWarning(null);
-        }
-
-        if (quickAdd && mode === 'point') {
-          // Quick add mode - immediately create overlay
-          quickAddOverlay(lat, lng);
-        } else if (mode === 'blockedRoute') {
+        // Allow picking regardless of whether the map is 'focused'. Do not
+        // surface a warning when the user marks outside a focused area —
+        // focus is only a convenience and shouldn't block marking.
+        setUiWarning(null);
+        if (mode === 'blockedRoute') {
           // add point to polygon
           setPolygonPoints(prev => [...prev, [lat, lng]]);
         } else if (mode === 'point') {
@@ -351,24 +236,42 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
         }
       }
 
-      // Require name explicitly
-      if (!form.name || !form.name.trim()) {
+      // For blockedRoute, name/lat/lng/capacity/status are unnecessary.
+      // Require name explicitly only for non-blockedRoute overlays.
+      if (form.type !== 'blockedRoute' && (!form.name || !form.name.trim())) {
         setUiWarning('Name is required for creating an overlay. Please enter a name.');
         setLoading(false);
         return;
       }
 
-      const payload = {
-        type: form.type,
-        name: form.name.trim(),
-        status: form.status,
-        capacity: form.capacity ? Number(form.capacity) : undefined,
-        properties: {
-          city: form.city || undefined,
-          state: form.state || undefined
-        },
-        geometry
-      };
+      // Build payload conditionally so blockedRoute requests are minimal
+      let payload;
+      if (form.type === 'blockedRoute') {
+        // generate a default record name for backend bookkeeping, but do not expose it in the UI
+        const existingCount = (items || []).filter(i => i.type === 'blockedRoute').length || 0;
+        const defaultName = `blocked-route-${existingCount + 1}`;
+        payload = {
+          type: form.type,
+          name: defaultName,
+          properties: {
+            city: form.city || undefined,
+            state: form.state || undefined
+          },
+          geometry
+        };
+      } else {
+        payload = {
+          type: form.type,
+          name: form.name.trim(),
+          status: form.status,
+          capacity: form.capacity ? Number(form.capacity) : undefined,
+          properties: {
+            city: form.city || undefined,
+            state: form.state || undefined
+          },
+          geometry
+        };
+      }
       if (!geometry) {
         setLoading(false);
         setUiWarning('Please select a location on the map or provide latitude/longitude');
@@ -455,6 +358,33 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
   // Edit flow
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTargetId, setConfirmTargetId] = useState(null);
+
+  const handleConfirmCancel = () => {
+    setConfirmOpen(false);
+    setConfirmTargetId(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    const id = confirmTargetId;
+    setConfirmOpen(false);
+    setConfirmTargetId(null);
+    if (!id) return;
+    try {
+      setLoading(true);
+      await deleteOverlay(id);
+      await load();
+      if (onOverlayChange) onOverlayChange();
+      // if we were editing that item, close edit modal
+      if (editingItem && editingItem._id === id) closeEdit();
+    } catch (e) {
+      console.error('Failed to delete overlay', e);
+      alert('Failed to delete overlay');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openEdit = (item) => {
     // Pre-fill edit form from item
@@ -487,17 +417,34 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
     try {
       setLoading(true);
       // Build payload similar to createOverlay
-      const payload = {
-        type: editForm.type,
-        name: editForm.name && editForm.name.trim() ? editForm.name.trim() : 'Unnamed',
-        status: editForm.status,
-        capacity: editForm.capacity ? Number(editForm.capacity) : undefined,
-        properties: {
-          city: editForm.city || undefined,
-          state: editForm.state || undefined
-        },
-        geometry: null
-      };
+      let payload = null;
+      if (editForm.type === 'blockedRoute') {
+        // For blockedRoute keep payload minimal and include properties + geometry only
+        // Preserve existing name if present (backend bookkeeping) otherwise generate a default
+        const existingCount = (items || []).filter(i => i.type === 'blockedRoute').length || 0;
+        const defaultName = editForm.name && editForm.name.trim() ? editForm.name.trim() : `blocked-route-${existingCount + 1}`;
+        payload = {
+          type: editForm.type,
+          name: defaultName,
+          properties: {
+            city: editForm.city || undefined,
+            state: editForm.state || undefined
+          },
+          geometry: null
+        };
+      } else {
+        payload = {
+          type: editForm.type,
+          name: editForm.name && editForm.name.trim() ? editForm.name.trim() : 'Unnamed',
+          status: editForm.status,
+          capacity: editForm.capacity ? Number(editForm.capacity) : undefined,
+          properties: {
+            city: editForm.city || undefined,
+            state: editForm.state || undefined
+          },
+          geometry: null
+        };
+      }
 
       if (editForm.geometry && editForm.geometry.type === 'Polygon') {
         // Keep existing polygon geometry (editing polygon vertices inline is out-of-scope)
@@ -522,30 +469,11 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
   };
 
   return (
-    <div className="card">
+    <div>
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Shelters & Resources</h2>
       <p className="text-sm text-gray-600 mb-4">Manage map overlays: shelters, medical camps, depots, blocked routes, advisories.</p>
 
-      {/* Quick Add Mode Indicator */}
-      {quickAddMode && form.type && form.type !== 'blockedRoute' && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
-              <span className="text-sm font-medium text-green-800">
-                Quick Add Mode: Click anywhere on the map to add {form.type}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="text-sm text-green-700 hover:text-green-900 underline"
-              onClick={() => setQuickAddMode(false)}
-            >
-              Disable
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Quick Add removed — overlays are added via the manual form only */}
 
       <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-6">
         <select className="input-field md:col-span-2" value={form.type} onChange={(e) => {
@@ -553,12 +481,6 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
           setForm({ ...form, type: t });
           // reset drawing states
           setPolygonPoints([]); setPointMarker(null); setDrawMode(false);
-          // Auto-enable quick add for point-based types
-          if (t !== 'blockedRoute') {
-            setQuickAddMode(true);
-          } else {
-            setQuickAddMode(false);
-          }
         }}>
           <option value="shelter">Shelter</option>
           <option value="medicalCamp">Medical Camp</option>
@@ -566,28 +488,28 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
           <option value="blockedRoute">Blocked Route</option>
           <option value="advisory">Advisory</option>
         </select>
-        <input className="input-field md:col-span-2" placeholder="Name (required)" value={form.name} onChange={(e) => { setUiWarning(null); setForm({ ...form, name: e.target.value }) }} />
-        <input className="input-field" placeholder="Latitude" value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} />
-        <input className="input-field" placeholder="Longitude" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} />
-        <input className="input-field md:col-span-2" placeholder="City (optional)" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-        <input className="input-field md:col-span-2" placeholder="State (optional)" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
-        <input className="input-field md:col-span-2" placeholder="Capacity (optional)" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} />
-        <select className="input-field md:col-span-2" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-          <option value="open">Open</option>
-          <option value="closed">Closed</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
+        {form.type !== 'blockedRoute' ? (
+          <>
+            <input className="input-field md:col-span-2" placeholder="Name (required)" value={form.name} onChange={(e) => { setUiWarning(null); setForm({ ...form, name: e.target.value }) }} />
+            <input className="input-field" placeholder="Latitude" value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} />
+            <input className="input-field" placeholder="Longitude" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} />
+            <input className="input-field md:col-span-2" placeholder="City (optional)" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            <input className="input-field md:col-span-2" placeholder="State (optional)" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+            <input className="input-field md:col-span-2" placeholder="Capacity (optional)" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} />
+            <select className="input-field md:col-span-2" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </>
+        ) : (
+          <>
+            <input className="input-field md:col-span-2" placeholder="City (optional)" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            <input className="input-field md:col-span-2" placeholder="State (optional)" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+          </>
+        )}
         <div className="md:col-span-6 flex items-center gap-2 flex-wrap">
-          {form.type !== 'blockedRoute' && (
-            <button
-              type="button"
-              className={`button-secondary ${quickAddMode ? 'bg-green-100 text-green-800 border-green-300' : ''}`}
-              onClick={() => setQuickAddMode(!quickAddMode)}
-            >
-              {quickAddMode ? '✓ Quick Add ON' : 'Quick Add OFF'}
-            </button>
-          )}
           {form.type === 'blockedRoute' && (
             <button type="button" className="button-secondary" onClick={() => {
               setDrawMode(d => !d);
@@ -603,11 +525,7 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
       {/* Map for picking point or drawing polygon */}
       <div className="mb-4">
         <div className="text-sm text-gray-600 mb-2">
-          {quickAddMode && form.type !== 'blockedRoute' ? (
-            <>Quick Add Mode is ON - Click anywhere on the map to add {form.type}. Use "Find Area" to focus the map first.</>
-          ) : (
-            <>Search by Pincode or City,State to focus the map area before picking locations. Then click the map to place a point or draw a blocked route (Start Draw → click vertices). Click Clear to reset.</>
-          )}
+          Search by Pincode or City,State to focus the map area before picking locations. Then click the map to place a point or draw a blocked route (Start Draw → click vertices). Click Clear to reset.
         </div>
         <div className="mb-3 flex gap-2">
           <input placeholder="Pincode or City, State" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input-field md:col-span-3" />
@@ -650,6 +568,15 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                 }
 
                 if (bounds && center) {
+                  // Use a unique focus id so MapController only applies focus when
+                  // this action was explicitly requested by Find Area.
+                  const focusId = `focus-${Date.now()}`;
+                  // Keep `bounds` as the original array shape required by Leaflet.
+                  // Attach a _focusId property on the array (arrays are objects in JS)
+                  // so MapController can read it without breaking fitBounds.
+                  try { bounds._focusId = focusId; } catch (e) { /* ignore */ }
+                  try { center._focusId = focusId; } catch (e) { /* ignore */ }
+
                   // Set bounds - MapController will handle the map movement
                   setAreaBounds(bounds);
                   // Show temporary marker
@@ -706,6 +633,9 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
               }
 
               if (bounds && center) {
+                const focusId = `focus-${Date.now()}`;
+                try { bounds._focusId = focusId; } catch (e) { /* ignore */ }
+                try { center._focusId = focusId; } catch (e) { /* ignore */ }
                 setAreaBounds(bounds);
                 setFocusedMarker(center);
                 setTimeout(() => setFocusedMarker(null), 3000);
@@ -724,12 +654,11 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
             setPointMarker(null);
           }}>{'Reset Area'}</button>
         </div>
-        <div style={{ height: 750 }} className="rounded overflow-hidden">
+        <div style={{ height: 820 }} className="rounded overflow-hidden">
           <MapContainer center={defaultCenter} zoom={5} style={{ height: '100%', width: '100%' }} whenCreated={(m) => { mapRef.current = m }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             <MapClickHandler
               mode={form.type === 'blockedRoute' && drawMode ? 'blockedRoute' : (form.type === 'blockedRoute' ? 'none' : 'point')}
-              quickAdd={quickAddMode && form.type !== 'blockedRoute'}
             />
             <MapController areaBounds={areaBounds} focusedMarker={focusedMarker} onFocused={handleMapFocused} onLog={pushMapLog} />
             {/* show focused area rectangle when available */}
@@ -794,9 +723,8 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                   <Polygon key={item._id} positions={latlngs} pathOptions={{ color: '#dc2626', fillOpacity: 0.15 }}>
                     <Popup>
                       <div>
-                        <strong>{item.name}</strong>
-                        <div>Type: {item.type}</div>
-                        <div>Status: {item.status || 'blocked'}</div>
+                          {item.type !== 'blockedRoute' && <strong>{item.name}</strong>}
+                          <div>Type: {item.type}</div>
                       </div>
                     </Popup>
                   </Polygon>
@@ -832,13 +760,15 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
       )}
       <div className="list-grid">
         {(items || []).map(item => (
-          <div key={item._id} className="card">
+          <div key={item._id} className={`card overlay-${(item.type || '').toLowerCase()}`}>
             <div className="flex items-center justify-between mb-2">
-              <div className="font-semibold">{item.name}</div>
-              <span className="badge-status pending">{item.type}</span>
-            </div>
+                <div className="font-semibold">{item.type === 'blockedRoute' ? 'Blocked Route' : item.name}</div>
+                {/* full-card tint indicates type; small corner dot removed */}
+              </div>
             <div className="text-sm text-gray-700">
-              <div>Status: {item.status || '—'} {typeof item.capacity === 'number' ? `• Capacity: ${item.capacity}` : ''}</div>
+              {item.type !== 'blockedRoute' && (
+                <div>Status: {item.status || '—'} {typeof item.capacity === 'number' ? `• Capacity: ${item.capacity}` : ''}</div>
+              )}
               {item.properties?.city && <div>City: {item.properties.city}</div>}
               {item.properties?.state && <div>State: {item.properties.state}</div>}
               {item.geometry?.type === 'Point' && item.geometry?.coordinates && (
@@ -862,18 +792,27 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
             <div className="bg-white rounded-lg p-6 w-full max-w-lg" style={{ boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
               <h3 className="text-lg font-semibold mb-3">Edit Overlay</h3>
               <div className="grid grid-cols-1 gap-2 mb-3">
-                <input className="input-field" value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Name" />
-                <select className="input-field" value={editForm.status} onChange={(e) => setEditForm(f => ({ ...f, status: e.target.value }))}>
-                  <option value="open">Open</option>
-                  <option value="closed">Closed</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-                <input className="input-field" value={editForm.capacity || ''} onChange={(e) => setEditForm(f => ({ ...f, capacity: e.target.value }))} placeholder="Capacity" />
-                <div className="flex gap-2">
-                  <input className="input-field" value={editForm.city || ''} onChange={(e) => setEditForm(f => ({ ...f, city: e.target.value }))} placeholder="City" />
-                  <input className="input-field" value={editForm.state || ''} onChange={(e) => setEditForm(f => ({ ...f, state: e.target.value }))} placeholder="State" />
-                </div>
+                {editForm.type !== 'blockedRoute' ? (
+                  <>
+                    <input className="input-field" value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Name" />
+                    <select className="input-field" value={editForm.status} onChange={(e) => setEditForm(f => ({ ...f, status: e.target.value }))}>
+                      <option value="open">Open</option>
+                      <option value="closed">Closed</option>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                    <input className="input-field" value={editForm.capacity || ''} onChange={(e) => setEditForm(f => ({ ...f, capacity: e.target.value }))} placeholder="Capacity" />
+                    <div className="flex gap-2">
+                      <input className="input-field" value={editForm.city || ''} onChange={(e) => setEditForm(f => ({ ...f, city: e.target.value }))} placeholder="City" />
+                      <input className="input-field" value={editForm.state || ''} onChange={(e) => setEditForm(f => ({ ...f, state: e.target.value }))} placeholder="State" />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex gap-2">
+                    <input className="input-field" value={editForm.city || ''} onChange={(e) => setEditForm(f => ({ ...f, city: e.target.value }))} placeholder="City" />
+                    <input className="input-field" value={editForm.state || ''} onChange={(e) => setEditForm(f => ({ ...f, state: e.target.value }))} placeholder="State" />
+                  </div>
+                )}
                 {editForm.geometry && editForm.geometry.type === 'Point' && (
                   <div className="flex gap-2">
                     <input className="input-field" value={Number(editForm.lat ?? '')} onChange={(e) => setEditForm(f => ({ ...f, lat: e.target.value }))} placeholder="Latitude" />
@@ -888,20 +827,10 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
                 <div className="flex gap-2">
                   <button
                     className="button-danger"
-                    onClick={async () => {
-                      if (!window.confirm('Delete this overlay? This action cannot be undone.')) return;
-                      try {
-                        setLoading(true);
-                        await deleteOverlay(editForm.id);
-                        await load();
-                        if (onOverlayChange) onOverlayChange();
-                        closeEdit();
-                      } catch (e) {
-                        console.error('Failed to delete overlay', e);
-                        alert('Failed to delete overlay');
-                      } finally {
-                        setLoading(false);
-                      }
+                    onClick={() => {
+                      // Open custom confirmation modal instead of native confirm
+                      setConfirmTargetId(editForm.id);
+                      setConfirmOpen(true);
                     }}
                   >Delete</button>
                 </div>
@@ -913,6 +842,16 @@ const ShelterManagement = ({ overlays = null, onOverlayChange = null, onLocalAdd
             </div>
           </div>
         )}
+        {/* Custom delete confirmation modal */}
+        <ConfirmModal
+          open={confirmOpen}
+          title="Delete this overlay"
+          message="Delete this overlay? This action cannot be undone."
+          onConfirm={handleConfirmDelete}
+          onCancel={handleConfirmCancel}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+        />
     </div>
   );
 };

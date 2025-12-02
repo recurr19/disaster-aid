@@ -311,7 +311,7 @@ const Heatmap = ({ points = [], overlays = null }) => {
   };
 
   return (
-    <div className="card">
+    <div>
       <h2 className="text-lg font-semibold text-gray-900 mb-2">Service Heatmap</h2>
       <p className="text-sm text-gray-600 mb-3">Interactive map — live tickets and overlay layers.</p>
       <div className="flex flex-wrap gap-3 mb-4">
@@ -333,7 +333,7 @@ const Heatmap = ({ points = [], overlays = null }) => {
         ))}
       </div>
 
-      <div style={{ height: 750, borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ height: 820, borderRadius: 12, overflow: 'hidden' }}>
         <MapContainer
           center={center}
           zoom={5}
