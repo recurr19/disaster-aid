@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import StatusMap from './pages/StatusMap';
 import NGOServiceHeatMap from './pages/NGOServiceHeatMap';
+import TrackSOS from './pages/TrackSOS';
 
 function App() {
   return (
@@ -26,6 +27,10 @@ function App() {
           <Route path="/status-map" element={<StatusMap />} />
 
           <Route path="/ngo-heat-map" element={<NGOServiceHeatMap />} />
+          
+          {/* Track SOS Requests (Public) */}
+          <Route path="/track-sos" element={<TrackSOS />} />
+          
           {/* Fallback */}
           <Route path="*" element={<p style={{ textAlign: 'center', marginTop: '50px' }}>Page Not Found</p>} />
         </Routes>

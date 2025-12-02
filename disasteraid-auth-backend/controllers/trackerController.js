@@ -138,4 +138,42 @@ exports.updateStatus = async (req, res) => {
   }
 };
 
+// Public endpoint: Get all active SOS requests (no auth required)
+exports.getPublicSOSRequests = async (req, res) => {
+  try {
+    const tickets = await Ticket.find({ 
+      isSOS: true, 
+      status: { $in: ['active', 'matched', 'in_progress'] } 
+    })
+      .populate('assignedTo', 'organizationName')
+      .select('ticketId helpTypes address landmark status createdAt totalBeneficiaries triageLevel priorityScore assignedTo channel isAnonymous')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    res.json({
+      success: true,
+      count: tickets.length,
+      tickets: tickets.map(t => ({
+        ticketId: t.ticketId,
+        helpTypes: t.helpTypes,
+        address: t.address,
+        landmark: t.landmark,
+        status: t.status,
+        createdAt: t.createdAt,
+        totalBeneficiaries: t.totalBeneficiaries,
+        triageLevel: t.triageLevel,
+        priorityScore: t.priorityScore,
+        channel: t.channel,
+        isAnonymous: t.isAnonymous,
+        assignedTo: t.assignedTo ? {
+          organizationName: t.assignedTo.organizationName
+        } : null
+      }))
+    });
+  } catch (e) {
+    console.error('getPublicSOSRequests error:', e);
+    res.status(500).json({ success: false, message: 'Failed to fetch SOS requests' });
+  }
+};
 

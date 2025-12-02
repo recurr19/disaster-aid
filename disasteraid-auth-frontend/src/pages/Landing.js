@@ -243,7 +243,7 @@ const Landing = () => {
 
           {/* CTA Buttons */}
           <motion.div
-            className="flex flex-col sm:flex-row gap-4 justify-center mb-12"
+            className="flex flex-col sm:flex-row gap-4 justify-center mb-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.6 }}
@@ -273,6 +273,23 @@ const Landing = () => {
               <Sparkles className="w-5 h-5 mr-2" />
               Access Portal
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </motion.div>
+
+          {/* Track SOS Quick Link */}
+          <motion.div
+            className="mb-12"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.7 }}
+          >
+            <button
+              onClick={() => navigate('/track-sos')}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-red-50/80 hover:bg-red-100/80 border border-red-200 rounded-lg backdrop-blur-sm transition-all"
+            >
+              <Activity className="w-4 h-4" />
+              Track Active SOS Requests
+              <ArrowRight className="w-4 h-4" />
             </button>
           </motion.div>
 
@@ -366,6 +383,13 @@ const Landing = () => {
                 className="text-blue-600 hover:text-blue-700 font-medium"
               >
                 Register as New User
+              </button>
+              <span className="text-gray-400">•</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate('/track-sos'); }}
+                className="text-red-600 hover:text-red-700 font-medium"
+              >
+                Track SOS Requests
               </button>
               <span className="text-gray-400">•</span>
               <button
