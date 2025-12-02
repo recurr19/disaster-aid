@@ -91,7 +91,9 @@ export default function NGODashboard() {
           urgency: a.isSOS ? 'SOS' : 'Normal',
           location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
           peopleCount: (a.ticket?.adults || 0) + (a.ticket?.children || 0) + (a.ticket?.elderly || 0),
-          ticketId: a.ticket?.ticketId
+          ticketId: a.ticket?.ticketId,
+          description: a.ticket?.description || '',
+          files: a.ticket?.files || []
         }));
         setMatchedCitizens(citizens);
 
@@ -138,7 +140,9 @@ export default function NGODashboard() {
         urgency: a.isSOS ? 'SOS' : 'Normal',
         location: a.ticket?.address || a.ticket?.landmark || 'Unknown',
         peopleCount: (a.ticket?.adults || 0) + (a.ticket?.children || 0) + (a.ticket?.elderly || 0),
-        ticketId: a.ticket?.ticketId
+        ticketId: a.ticket?.ticketId,
+        description: a.ticket?.description || '',
+        files: a.ticket?.files || []
       }));
       setMatchedCitizens(citizens);
       const requests = (accepted.assignments || []).map(a => ({

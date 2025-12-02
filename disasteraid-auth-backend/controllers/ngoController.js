@@ -14,7 +14,7 @@ exports.listMatches = async (req, res) => {
     const { status = 'proposed' } = req.query;
 
     const assignments = await TicketAssignment.find({ ngo: ngoProfile._id, status })
-      .populate('ticket', '-files.path')
+      .populate('ticket')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -43,7 +43,13 @@ exports.listMatches = async (req, res) => {
           elderly: a.ticket.elderly,
           totalBeneficiaries: a.ticket.totalBeneficiaries,
           createdAt: a.ticket.createdAt,
-          _id: a.ticket._id
+          _id: a.ticket._id,
+          files: a.ticket.files ? a.ticket.files.map(f => ({
+            filename: f.filename,
+            originalname: f.originalname,
+            mimetype: f.mimetype,
+            size: f.size
+          })) : []
         } : null
       }))
     });
